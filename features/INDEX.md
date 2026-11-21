@@ -16,7 +16,7 @@
 | ID | Feature | Beschreibung | Prio | Abhängig von | Status | Spec | Created |
 |----|---------|--------------|------|--------------|--------|------|---------|
 | PROJ-1 | Einstellungen & Setup | Ordnerpfade (Eingang, Ablage) und Claude-API-Schlüssel konfigurieren und prüfen | P0 | None | Approved | [PROJ-1-einstellungen-setup.md](PROJ-1-einstellungen-setup.md) | 2026-11-21 |
-| PROJ-2 | Eingangsliste | PDFs im Eingangsordner auflisten, aktualisieren, Scan auswählen | P0 | PROJ-1 | Roadmap | – | 2026-11-21 |
+| PROJ-2 | Eingangsliste | PDFs im Eingangsordner auflisten, aktualisieren, Scan auswählen | P0 | PROJ-1 | Planned | [PROJ-2-eingangsliste.md](PROJ-2-eingangsliste.md) | 2026-11-21 |
 | PROJ-3 | PDF-Vorschau | Ausgewählten Scan mehrseitig anzeigen (blättern, zoomen) | P0 | PROJ-2 | Roadmap | – | 2026-11-21 |
 | PROJ-4 | KI-Analyse | PDF an Claude senden, Typ/Datum/Lieferant/Beschreibung/Betrag/Artikel/Garantiedauer vorschlagen | P0 | PROJ-1, PROJ-2 | Roadmap | – | 2026-11-21 |
 | PROJ-5 | Prüfen & Ablegen | Vorschläge bearbeiten, Dateiname `JJMMTT_Lieferant_Beschreibung[_Garantie].pdf` bilden, Zielordner anlegen, Datei verschieben, Namenskonflikte behandeln | P0 | PROJ-2, PROJ-4 | Roadmap | – | 2026-11-21 |

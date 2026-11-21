@@ -13,7 +13,7 @@ ScanTool ist ein lokales Werkzeug, das eingescannte Rechnungen und Garantieschei
 | Priority | Feature | Status |
 |----------|---------|--------|
 | P0 (MVP) | Projekt-Setup & Einstellungen (Ordnerpfade, Claude-API-Schlüssel) – PROJ-1 | Planned (Spec) |
-| P0 (MVP) | Eingangsliste: neue PDFs im Eingangsordner anzeigen | Planned |
+| P0 (MVP) | Eingangsliste: neue PDFs im Eingangsordner anzeigen – PROJ-2 | Planned (Spec) |
 | P0 (MVP) | PDF-Vorschau | Planned |
 | P0 (MVP) | KI-Analyse: Typ, Datum, Lieferant, Beschreibung, Betrag u. a. vorschlagen | Planned |
 | P0 (MVP) | Prüfen & Ablegen: Felder bearbeiten, Dateiname bilden, in Zielordner verschieben | Planned |
@@ -41,7 +41,7 @@ ScanTool ist ein lokales Werkzeug, das eingescannte Rechnungen und Garantieschei
 - **Team:** eine Person, Entwicklung mit Claude Code
 - **Zeitplan:** kein fester Termin (Nebenprojekt), MVP in wenigen Wochen nutzbar
 - **Betrieb:** nur lokal auf dem eigenen PC (localhost), kein Hosting, kein Login
-- **Dateizugriff:** direkt auf die lokal synchronisierten OneDrive-Ordner, keine Microsoft Graph API
+- **Dateizugriff:** direkt über das Dateisystem, keine Microsoft Graph API. Eingang: Netzwerkfreigabe der Fritz!Box-NAS (Scanner legt dort ab, UNC-Pfad); Ablage: lokal synchronisierter OneDrive-Ordner. Eingang und Ablage liegen damit auf verschiedenen Laufwerken.
 - **KI:** Claude API mit eigenem API-Schlüssel (separat vom Claude-Abo, Abrechnung nach Verbrauch, wenige Rappen pro Dokument)
 - **Backend:** im MVP keine Datenbank, Supabase folgt in P1
 - **Design:** keine Vorgaben, Standard shadcn/ui mit hellem und dunklem Modus
