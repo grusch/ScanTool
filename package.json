@@ -4,7 +4,9 @@
   "description": "AI Coding Starter Kit with AI Agent Team System for Claude Code",
   "private": true,
   "scripts": {
+    "predev": "node scripts/copy-pdfjs-assets.mjs",
     "dev": "next dev -H 127.0.0.1",
+    "prebuild": "node scripts/copy-pdfjs-assets.mjs",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
     "lint": "next lint",
@@ -14,7 +16,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:all": "vitest run && playwright test",
     "live": "node scripts/live.mjs",
-    "live:build": "node scripts/live.mjs build"
+    "live:build": "node scripts/live.mjs build",
+    "postinstall": "node scripts/copy-pdfjs-assets.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",

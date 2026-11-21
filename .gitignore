@@ -12,6 +12,8 @@
 # next.js
 /.next/
 /.next-live/
+# PDF.js runtime files, copied from node_modules (scripts/copy-pdfjs-assets.mjs)
+/public/pdfjs/
 /out/
 
 # production

@@ -23,6 +23,18 @@ import {
 // Worker is bundled and served locally (no CDN) – must be set in the module that renders <Document>
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
 
+// Helper files served from public/pdfjs (copied from pdfjs-dist, see scripts/copy-pdfjs-assets.mjs).
+// wasm: decoders for black-and-white scans (CCITT/JBIG2) and JPEG 2000 – without them such scans stay blank.
+// Absolute URLs, because the PDF.js worker resolves them itself.
+const ASSETS = `${window.location.origin}/pdfjs`
+const PDF_OPTIONS = {
+  wasmUrl: `${ASSETS}/wasm/`,
+  standardFontDataUrl: `${ASSETS}/standard_fonts/`,
+  cMapUrl: `${ASSETS}/cmaps/`,
+  cMapPacked: true,
+  iccUrl: `${ASSETS}/iccs/`,
+}
+
 /** Padding of the scroll area and gap between pages (CSS px) */
 const PAD = 16
 const GAP = 16
@@ -195,6 +207,7 @@ export function PdfViewer({ blob, newTabUrl, onError }: PdfViewerProps) {
       >
         <Document
           file={file}
+          options={PDF_OPTIONS}
           onLoadSuccess={onLoadSuccess}
           onLoadError={onLoadError}
           onPassword={() => onError("password")}

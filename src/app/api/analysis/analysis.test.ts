@@ -117,7 +117,7 @@ describe("POST /api/analysis – Analyse & Merken", () => {
         warrantyMonths: 24,
       },
     })
-    const params = parse.mock.calls[0][0] as Record<string, unknown>
+    const params = parse.mock.calls[0][0] as unknown as Record<string, unknown>
     expect(params.model).toBe("claude-haiku-5-5")
     expect(params.output_config).toMatchObject({ effort: "low" })
     expect(sentPdf().subarray(0, 5).toString()).toBe("%PDF-")

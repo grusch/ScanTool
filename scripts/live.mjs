@@ -18,6 +18,13 @@ const URL = `http://${HOST}:${PORT}/`
 const DIST = ".next-live"
 const env = { ...process.env, SCANTOOL_DIST_DIR: DIST, NODE_ENV: "production" }
 
+function copyPdfjsAssets() {
+  return new Promise((resolve, reject) => {
+    const p = spawn(process.execPath, [path.join(ROOT, "scripts", "copy-pdfjs-assets.mjs")], { cwd: ROOT, stdio: "inherit" })
+    p.on("exit", (code) => (code === 0 ? resolve() : reject(new Error("copy-pdfjs-assets failed"))))
+  })
+}
+
 function run(args) {
   return new Promise((resolve, reject) => {
     // args are fixed constants of this script – passed as one command string (no user input)
@@ -55,6 +62,7 @@ if (mode === "build") {
     console.error(`ScanTool läuft noch auf ${URL} – bitte zuerst das ScanTool-Fenster schliessen.`)
     process.exit(1)
   }
+  await copyPdfjsAssets()
   await run(["build"])
   console.log(`\nFertig. Starten mit: npm run live (oder Desktop-Verknüpfung „ScanTool")`)
 } else {
@@ -65,6 +73,7 @@ if (mode === "build") {
   }
   if (!existsSync(path.join(ROOT, DIST, "BUILD_ID"))) {
     console.log("Erster Start: ScanTool wird gebaut (dauert ca. 1 Minute) …")
+    await copyPdfjsAssets()
     await run(["build"])
   }
   console.log(`ScanTool startet auf ${URL} – dieses Fenster offen lassen, Schliessen beendet ScanTool.`)
