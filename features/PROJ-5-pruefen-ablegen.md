@@ -42,7 +42,7 @@
 - [ ] Angenommen der Dateiname wurde selbst geändert, wenn der Nutzer „Aus Feldern übernehmen" klickt, dann wird der Name wieder aus den Feldern gebildet und folgt ihnen wieder
 - [ ] Angenommen der Nutzer gibt einen Namen ohne `.pdf` ein, wenn abgelegt wird, dann wird `.pdf` automatisch ergänzt (Gross-/Kleinschreibung der Endung egal)
 - [ ] Angenommen der Dateiname enthält `\ / : * ? " < > |`, ist leer, länger als 100 Zeichen oder besteht nur aus Punkten/Leerzeichen, wenn er angezeigt wird, dann erscheint unter dem Feld eine verständliche Meldung (z. B. „Unerlaubtes Zeichen: /") und „Rechnung" ist deaktiviert
-- [ ] Angenommen die Einzelfelder reichen nicht für einen Namen (z. B. Lieferant fehlt), wenn das Dateiname-Feld angezeigt wird, dann ist es leer mit dem Hinweis, was fehlt (wie PROJ-4), und kann trotzdem selbst ausgefüllt werden
+- [ ] Angenommen Lieferant oder Beschreibung fehlen, wenn das Dateiname-Feld angezeigt wird, dann steht der Name aus den vorhandenen Teilen darin (mindestens das Datum, z. B. `261113_.pdf`) mit dem Hinweis, was fehlt; ohne gültiges Datum ist es leer – in beiden Fällen selbst ausfüllbar
 - [ ] Angenommen der Nutzer hat für einen Scan Felder oder den Dateinamen geändert, wenn er zu einem anderen Scan wechselt und zurückkehrt, dann sind seine Eingaben noch da (solange ScanTool geöffnet ist)
 
 ### Knopf „Rechnung"
@@ -289,6 +289,8 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 - `src/lib/filing-types.ts`, `src/lib/filing-api.ts` – Vertrag mit dem Backend und Meldungstexte.
 - `inbox-workspace.tsx` – Entwurf je Scan um `fileName` erweitert (`ScanDraft`), `useFiling` eingebunden; `use-inbox.ts`: `refresh` liefert ein Promise.
 - `suggestions-panel.tsx` – bisherige Dateiname-Vorschau durch den Ablage-Bereich ersetzt.
+
+**Änderung (2026-11-21, Nutzerwunsch):** Dateiname wird auch aus Teilen gebildet (Datum immer, Lieferant/Beschreibung soweit vorhanden); fehlende Teile stehen grau darunter, Fehler im Namen rot.
 
 **Tests:** 17 neue Komponententests (`filing-section.test.tsx`, Server simuliert): Name folgt Feldern / eigener Name / „Aus Feldern übernehmen", ungültiger Name, ohne Datum, Name je Scan, Rechnung mit Jahr aus dem Datumsfeld + nächster Scan, Scan mit Namen bzw. Originalname, Tastenkürzel, Sperre bei Doppelauslösung, Konflikt/bereits abgelegt, Fehler (Ablage/NAS/Rechte), Original nicht gelöscht, Rückgängig inkl. Wiederauswahl und Eingaben, Rückgängig nicht möglich. Bestehende PROJ-4-Tests auf das Dateiname-Feld umgestellt. Vitest gesamt 241/241.
 

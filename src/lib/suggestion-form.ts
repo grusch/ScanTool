@@ -108,9 +108,17 @@ export function sanitizePart(text: string): string {
     .replace(/^[-.]+|[-.]+$/g, "")
 }
 
-export type FileNameResult = { ok: true; name: string } | { ok: false; missing: string[] }
+/**
+ * ok: a name could be built (needs a valid date) – `missing` lists parts that are still empty.
+ * not ok: no valid date, so no name at all.
+ */
+export type FileNameResult = { ok: true; name: string; missing: string[] } | { ok: false; missing: string[] }
 
-/** `JJMMTT_Lieferant_Beschreibung[_Garantie].pdf`, max. 100 characters (description is shortened) */
+/**
+ * `JJMMTT_Lieferant_Beschreibung[_Garantie].pdf`, max. 100 characters (description is shortened).
+ * Missing supplier/description are left out (user request 2026-11-21), e.g. `261113_Elektra.pdf`;
+ * with only the date the name is `261113_.pdf`, ready to type on.
+ */
 export function buildFileName(f: Pick<SuggestionFields, "docType" | "date" | "supplier" | "description">): FileNameResult {
   const missing: string[] = []
   const date = parseSwissDate(f.date)
@@ -120,20 +128,30 @@ export function buildFileName(f: Pick<SuggestionFields, "docType" | "date" | "su
   if (!supplier) missing.push("Lieferant fehlt")
   let description = sanitizePart(f.description)
   if (!description) missing.push("Beschreibung fehlt")
-  if (missing.length > 0 || !date) return { ok: false, missing }
+  if (!date) return { ok: false, missing }
 
   const yymmdd =
     String(date.year % 100).padStart(2, "0") + String(date.month).padStart(2, "0") + String(date.day).padStart(2, "0")
   const suffix = (f.docType === "garantieschein" ? "_Garantie" : "") + ".pdf"
-  const fixed = yymmdd.length + 2 + suffix.length // two "_" separators
+  if (!supplier && !description) return { ok: true, name: `${yymmdd}_${suffix}`, missing }
+
+  const parts = [supplier, description].filter(Boolean)
+  const fixed = yymmdd.length + parts.length + suffix.length // one "_" before each part
 
   // Shorten the description first; only if that is not enough, the supplier too
-  let room = MAX_FILE_NAME_LENGTH - fixed - supplier.length
-  if (room < 1) {
-    supplier = supplier.slice(0, Math.max(1, MAX_FILE_NAME_LENGTH - fixed - 1)).replace(/[-.]+$/, "")
-    room = MAX_FILE_NAME_LENGTH - fixed - supplier.length
+  if (supplier && description) {
+    let room = MAX_FILE_NAME_LENGTH - fixed - supplier.length
+    if (room < 1) {
+      supplier = supplier.slice(0, Math.max(1, MAX_FILE_NAME_LENGTH - fixed - 1)).replace(/[-.]+$/, "")
+      room = MAX_FILE_NAME_LENGTH - fixed - supplier.length
+    }
+    if (description.length > room) description = description.slice(0, room).replace(/[-.]+$/, "") || description[0]
+  } else {
+    const room = MAX_FILE_NAME_LENGTH - fixed
+    supplier = supplier.slice(0, room).replace(/[-.]+$/, "") || supplier.slice(0, 1)
+    description = description.slice(0, room).replace(/[-.]+$/, "") || description.slice(0, 1)
   }
-  if (description.length > room) description = description.slice(0, room).replace(/[-.]+$/, "") || description[0]
 
-  return { ok: true, name: `${yymmdd}_${supplier}_${description}${suffix}` }
+  const body = [supplier, description].filter(Boolean).map((p) => `_${p}`).join("")
+  return { ok: true, name: `${yymmdd}${body}${suffix}`, missing }
 }

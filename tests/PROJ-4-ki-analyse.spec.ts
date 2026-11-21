@@ -81,7 +81,9 @@ test.describe('PROJ-4 Dateiname-Vorschau', () => {
     await scan('rechnung.pdf', 10)
     await open(page)
     const p = panel(page, 'rechnung.pdf')
-    await expect(fileName(page)).toHaveValue('')
+    // Only the date (from the file properties) is known → partial name, missing parts named
+    const d = swissDate(Date.now() - 10 * 60_000).split('.')
+    await expect(fileName(page)).toHaveValue(`${d[2].slice(2)}${d[1]}${d[0]}_.pdf`)
     await expect(fileNameHint(page)).toHaveText('Lieferant fehlt · Beschreibung fehlt')
     await p.getByLabel('Datum', { exact: true }).fill('21.11.2026')
     await p.getByLabel('Lieferant', { exact: true }).fill('Müller & Söhne')

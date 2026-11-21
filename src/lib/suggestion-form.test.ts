@@ -14,24 +14,24 @@ const base = { docType: "rechnung" as const, date: "21.11.2026", supplier: "Digi
 
 describe("buildFileName", () => {
   it("builds JJMMTT_Lieferant_Beschreibung.pdf", () => {
-    expect(buildFileName(base)).toEqual({ ok: true, name: "261121_Digitec_Monitor-Dell-U2724D.pdf" })
+    expect(buildFileName(base)).toMatchObject({ ok: true, name: "261121_Digitec_Monitor-Dell-U2724D.pdf" })
   })
   it("adds _Garantie for warranty documents", () => {
-    expect(buildFileName({ ...base, docType: "garantieschein" })).toEqual({
+    expect(buildFileName({ ...base, docType: "garantieschein" })).toMatchObject({
       ok: true,
       name: "261121_Digitec_Monitor-Dell-U2724D_Garantie.pdf",
     })
   })
   it("keeps umlauts, turns spaces into dashes", () => {
     const r = buildFileName({ ...base, supplier: "Müller Söhne", description: "Kühlschrank groß" })
-    expect(r).toEqual({ ok: true, name: "261121_Müller-Söhne_Kühlschrank-groß.pdf" })
+    expect(r).toMatchObject({ ok: true, name: "261121_Müller-Söhne_Kühlschrank-groß.pdf" })
   })
   it("removes forbidden characters and underscores", () => {
     const r = buildFileName({ ...base, supplier: 'A/B:C*D?"E<F>G|H_I\\J', description: "x__y" })
-    expect(r).toEqual({ ok: true, name: "261121_A-B-C-D-E-F-G-H-I-J_x-y.pdf" })
+    expect(r).toMatchObject({ ok: true, name: "261121_A-B-C-D-E-F-G-H-I-J_x-y.pdf" })
   })
   it("keeps dots inside names but not at the ends", () => {
-    expect(buildFileName({ ...base, supplier: "Brack.ch", description: "Kabel." })).toEqual({
+    expect(buildFileName({ ...base, supplier: "Brack.ch", description: "Kabel." })).toMatchObject({
       ok: true,
       name: "261121_Brack.ch_Kabel.pdf",
     })
@@ -51,13 +51,38 @@ describe("buildFileName", () => {
     expect(r.ok && r.name.length).toBeLessThanOrEqual(MAX_FILE_NAME_LENGTH)
     expect(r.ok && r.name.endsWith("_Garantie.pdf")).toBe(true)
   })
-  it("names what is missing instead of a half name", () => {
+  it("without a valid date there is no name – only what is missing", () => {
     expect(buildFileName({ docType: "", date: "", supplier: "", description: "" })).toEqual({
       ok: false,
       missing: ["Datum fehlt", "Lieferant fehlt", "Beschreibung fehlt"],
     })
     expect(buildFileName({ ...base, date: "31.02.2026" })).toEqual({ ok: false, missing: ["Datum ungültig"] })
-    expect(buildFileName({ ...base, supplier: "  ___ " })).toEqual({ ok: false, missing: ["Lieferant fehlt"] })
+  })
+  it("builds a partial name from what is there and names the missing parts", () => {
+    expect(buildFileName({ ...base, date: "13.11.2026", description: "" })).toEqual({
+      ok: true,
+      name: "261113_Digitec.pdf",
+      missing: ["Beschreibung fehlt"],
+    })
+    expect(buildFileName({ ...base, supplier: "  ___ " })).toEqual({
+      ok: true,
+      name: "261121_Monitor-Dell-U2724D.pdf",
+      missing: ["Lieferant fehlt"],
+    })
+  })
+  it("with only the date the name is JJMMTT_.pdf (ready to type on)", () => {
+    expect(buildFileName({ docType: "", date: "13.11.2026", supplier: "", description: "" })).toEqual({
+      ok: true,
+      name: "261113_.pdf",
+      missing: ["Lieferant fehlt", "Beschreibung fehlt"],
+    })
+    expect(buildFileName({ docType: "garantieschein", date: "13.11.2026", supplier: "", description: "" })).toMatchObject({
+      name: "261113__Garantie.pdf",
+    })
+  })
+  it("a partial name also stays within 100 characters", () => {
+    const r = buildFileName({ docType: "", date: "13.11.2026", supplier: "X".repeat(150), description: "" })
+    expect(r.ok && r.name.length).toBeLessThanOrEqual(MAX_FILE_NAME_LENGTH)
   })
 })
 

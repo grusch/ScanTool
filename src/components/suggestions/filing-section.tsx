@@ -53,7 +53,9 @@ export function FilingSection(props: FilingSectionProps) {
         : !parsedDate
           ? "Datum ungültig – Jahresordner unbekannt"
           : null
-  const hint = !shown.trim() && !custom && !autoName.ok ? autoName.missing.join(" · ") : !check.ok ? check.message : null
+  // Error (red): the shown name is invalid. Info (grey): parts that are still missing in the automatic name.
+  const error = shown.trim() && !check.ok ? check.message : null
+  const hint = error ?? (!custom && autoName.missing.length > 0 ? autoName.missing.join(" · ") : null)
 
   const fileInvoice = () => {
     if (invoiceBlocker || !check.ok || !year) return
@@ -100,14 +102,14 @@ export function FilingSection(props: FilingSectionProps) {
         data-testid="file-name-input"
         value={shown}
         onChange={(e) => props.onNameChange(e.target.value)}
-        className={cn("font-mono text-sm", hint && shown.trim() && "border-destructive")}
+        className={cn("font-mono text-sm", error && "border-destructive")}
         autoComplete="off"
         spellCheck={false}
-        aria-invalid={Boolean(hint && shown.trim())}
+        aria-invalid={Boolean(error)}
         aria-describedby={hint ? "filing-name-hint" : undefined}
       />
       {hint && (
-        <p id="filing-name-hint" data-testid="file-name-hint" className={cn("text-xs", shown.trim() ? "text-destructive" : "text-muted-foreground")}>
+        <p id="filing-name-hint" data-testid="file-name-hint" className={cn("text-xs", error ? "text-destructive" : "text-muted-foreground")}>
           {hint}
         </p>
       )}

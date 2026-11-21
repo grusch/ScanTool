@@ -59,7 +59,8 @@
 - [ ] Angenommen ein Feld enthält Umlaute, dann bleiben sie im Namen erhalten (z. B. `Müller`)
 - [ ] Angenommen ein Feld enthält `\ / : * ? " < > |` oder `_`, dann werden diese Zeichen entfernt bzw. durch `-` ersetzt (der Unterstrich trennt nur die Bestandteile)
 - [ ] Angenommen der Name würde länger als 100 Zeichen, dann wird die Beschreibung so gekürzt, dass der Name höchstens 100 Zeichen hat
-- [ ] Angenommen Datum, Lieferant oder Beschreibung fehlt bzw. das Datum ist ungültig, dann zeigt die Vorschau statt eines Namens, was fehlt (z. B. „Datum fehlt")
+- [ ] Angenommen das Datum fehlt oder ist ungültig, dann gibt es keinen Namen, sondern den Hinweis, was fehlt (z. B. „Datum fehlt")
+- [ ] Angenommen Lieferant und/oder Beschreibung fehlen, dann wird der Name aus den vorhandenen Teilen gebildet (z. B. `261113_Elektra-Gaiserwald.pdf`, nur Datum: `261113_.pdf`) und darunter steht, was fehlt (Änderung 2026-11-21)
 
 ### Laden & eigene Eingaben
 - [ ] Angenommen die Analyse läuft, wenn die rechte Spalte angezeigt wird, dann zeigt sie „KI analysiert …" mit Ladeanzeige, die Felder sind bereits bedienbar
@@ -125,6 +126,7 @@
 | Nur die ersten 5 Seiten; ab 30 MB keine Analyse | Rechnungsdaten stehen vorne; Kosten bleiben bei dicken Dokumenten klein | 2026-11-21 |
 | Fehler verhindern nie das manuelle Ausfüllen | Tool bleibt auch ohne KI nutzbar | 2026-11-21 |
 | Datum-Fallback: kein Rechnungsdatum → früheres von Erstell-/Änderungsdatum der Datei (nicht PDF-intern), mit Hinweis | Nutzerwunsch nach QA; Dateiname ist damit fast immer vollständig; „früheres" ist robust gegen Kopieren/Bearbeiten | 2026-11-21 |
+| Teil-Dateiname, wenn Lieferant/Beschreibung fehlen (nur Datum → `JJMMTT_.pdf`) | Nutzerwunsch: Datum immer im Namen vorschlagen, Rest ergänzen statt leeres Feld | 2026-11-21 |
 | Keine grauen Beispieltexte in Lieferant/Beschreibung/Betrag/Währung | Wirkten wie eingetragene Werte (BUG-3) | 2026-11-21 |
 
 ### Technical Decisions
