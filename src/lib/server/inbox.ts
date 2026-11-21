@@ -4,6 +4,7 @@ import path from "path"
 import { cleanPath } from "@/lib/paths"
 import type { InboxFile, InboxResponse } from "@/lib/inbox-types"
 import type { FolderStatus } from "@/lib/settings-types"
+import { fingerprint, pruneAnalyses } from "./analysis-store"
 import { FOLDER_CHECK_TIMEOUT_MS, networkGuard } from "./folders"
 import { TimeoutError, withTimeout } from "./network"
 import { readSettings } from "./settings-store"
@@ -104,6 +105,10 @@ export async function listInbox(): Promise<InboxResponse> {
 
   try {
     const files = await withTimeout(scan(folder, now), FOLDER_CHECK_TIMEOUT_MS)
+    // PROJ-4: forget AI results of scans that were filed, deleted or replaced (in the background)
+    pruneAnalyses(files.map((f) => fingerprint(f.name, f.size, Date.parse(f.modifiedAt)))).catch((err) =>
+      console.warn("[inbox] could not prune analyses", (err as Error)?.message)
+    )
     return { folder, status: "ok", checkedAt, files }
   } catch (err) {
     const status = err instanceof TimeoutError ? "unreachable" : statusFromError(err)

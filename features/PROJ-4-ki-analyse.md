@@ -316,7 +316,24 @@ In allen Fällen bleibt das Formular bedienbar. Fehler werden **nicht** gemerkt,
 - Eigene Eingaben gelten als „berührt", sobald getippt wurde – auch ein bewusst geleertes Feld bleibt leer. Nicht berührte Felder zeigen immer den aktuellen KI-Vorschlag; „Neu analysieren" ersetzt daher alle nicht berührten Felder (nicht nur leere) – eigene Eingaben bleiben wie gefordert stehen.
 - Validierung bewusst ohne react-hook-form: die Felder sind frei editierbar, Prüfungen (Datum gültig, Pflichtteile für den Dateinamen) zeigt die Dateiname-Vorschau. Feldprüfung beim Ablegen folgt in PROJ-5.
 - Geprüft im Dev-Server mit simulierter Schnittstelle (keine Kosten): Tippen während der Analyse wird nicht überschrieben, Dateiname inkl. `_Garantie` und Umlauten, „Datum ungültig", 5-Seiten-Hinweis, Eingaben bleiben nach Scan-Wechsel, Fehler „kein Guthaben" mit „Erneut versuchen", 375 px ohne seitliches Scrollen.
-- **Noch offen (Backend):** `POST /api/analysis` existiert noch nicht → bis `/backend` zeigt die Spalte „Der Scan ist nicht mehr im Eingang."
+
+## Implementation Notes (Backend)
+**Gebaut (2026-11-21):**
+- `POST /api/analysis` (`src/app/api/analysis/route.ts`) – Body `{ name, force? }` (Zod). Antwort `{ ok: true, cached, suggestion, pagesAnalyzed, totalPages, analyzedAt, model }` oder `{ ok: false, code }` mit HTTP-Status je Grund: 400 `invalid_name`, 404 `not_found`, 412 `missing_key`, 413 `too_large`, 422 `unreadable`, 502 `invalid_key`/`no_credit`/`unreachable`/`bad_response`, 503 `inbox_unreachable`, 504 `timeout`, 500 `unknown`, 403 nicht lokal.
+- `src/lib/server/analysis.ts`:
+  - Ablauf: Namensprüfung (gleiche Regeln wie PROJ-3) → API-Schlüssel → NAS-Schnellprüfung → `stat` (> 30 MB → `too_large`) → Fingerabdruck → gemerktes Ergebnis oder Analyse.
+  - Analyse: Datei lesen → **pdf-lib** öffnet (beschädigt/passwortgeschützt → `unreadable`, ohne Kosten) → bei > 5 Seiten Kopie der ersten 5 Seiten im Arbeitsspeicher → **Claude `claude-haiku-5-5`** über `messages.parse` mit `zodOutputFormat` (Structured Outputs), `effort: "low"`, PDF als base64-Dokument, deutscher System-Prompt („nur Sicheres, sonst null").
+  - `stop_reason` `refusal`/`max_tokens` oder fehlendes `parsed_output` → `bad_response`.
+  - `normalize()`: Datum nur als gültiges YYYY-MM-DD (1990–2100), Währung nur 3-Buchstaben-Code, Betrag auf 2 Stellen, leere Texte → null, max. 10 Artikel, Garantie 1–600 Monate, Dokumenttyp null wenn kein Rechnungsdokument.
+  - Laufende Analysen je Fingerabdruck in einer Map: zweite Anfrage hängt sich an, Analyse läuft weiter, wenn der Browser nicht mehr wartet. Zeitlimit 60 s pro Anfrage (SDK: 28 s Timeout, 1 Wiederholung).
+  - Modell steht an einer Stelle: `ANALYSIS_MODEL`.
+- `src/lib/server/analysis-store.ts` – `data/analyses.json` (gitignored), Schlüssel `Name|Grösse|Änderungszeit(ms, abgerundet)`, Änderungen nacheinander und atomar (Temp-Datei + rename). Beim Speichern werden ältere Einträge desselben Dateinamens entfernt. `pruneAnalyses()` wird bei jedem erfolgreichen Auflisten des Eingangs (PROJ-2, `listInbox`) im Hintergrund aufgerufen.
+- Fehler werden nicht gemerkt; der nächste Versuch fragt erneut.
+- Neues Paket: `pdf-lib` 1.17.1.
+
+**Tests:** `src/app/api/analysis/analysis.test.ts` – 35 Integrationstests (Claude simuliert, keine Kosten): Analyse + Normalisierung, Merken (auch Datei-Speicher), „Neu analysieren", gleichzeitige Anfragen = 1 Aufruf, ersetzte Datei, Fehler nicht gemerkt, Aufräumen beim Auflisten, 5-Seiten-Zuschnitt (gesendetes PDF hat 5 Seiten, Original unverändert), beschädigt/passwortgeschützt/> 30 MB ohne Aufruf, ungültige Werte → leer, kein Rechnungsdokument, Ablehnung/abgeschnitten/unlesbar, Fehlerzuordnung, ohne Schlüssel kein Aufruf, Namensprüfung, NAS unerreichbar < 5 s, fremde Webseiten 403, Schlüssel nie in Antwort.
+
+**Live (mit Zustimmung des Nutzers, 1 echter Aufruf):** Scan `CHENGPR006_004612.pdf` (1 Seite) → 3,8 s Analyse (+ einmalig Kompilieren im Dev-Modus), korrekt als „kein Rechnungsdokument" erkannt (Brief), nur Datum und Absender eingetragen. Zweiter Abruf aus dem Speicher in 0,05 s, ohne Kosten.
 
 ## QA Test Results
 _To be added by /qa_
