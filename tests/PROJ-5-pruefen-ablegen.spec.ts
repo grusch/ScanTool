@@ -371,6 +371,24 @@ test.describe('PROJ-5 Löschen → Papierkorb', () => {
     expect(await ls(trashDir())).toEqual(['a.pdf'])
   })
 
+  test('Gehaltenes Strg + Entf schiebt nur einen Scan in den Papierkorb (QA BUG-4)', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Keine Hardware-Tastatur')
+    await scan('a.pdf', 30)
+    await scan('b.pdf', 20)
+    await scan('c.pdf', 10)
+    await open(page)
+    await page.keyboard.down('Control')
+    await page.keyboard.down('Delete') // first press
+    await expect(selected(page)).toContainText('b.pdf')
+    await expect(trashBtn(page)).toBeEnabled() // lock after the first one is over
+    for (let i = 0; i < 5; i++) await page.keyboard.down('Delete') // held key → repeat events
+    await page.keyboard.up('Delete')
+    await page.keyboard.up('Control')
+    await page.waitForTimeout(500)
+    expect(await ls(trashDir())).toEqual(['a.pdf'])
+    await expect(page.getByRole('option')).toHaveCount(2)
+  })
+
   test('Doppelklick + Kürzel → genau ein Scan im Papierkorb', async ({ page, isMobile }) => {
     await scan('a.pdf', 20)
     await scan('b.pdf', 10)

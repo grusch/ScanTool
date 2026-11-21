@@ -512,7 +512,7 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 **Bugs gefunden**
 
 #### BUG-4: Gedrückt gehaltenes Strg + Entf schiebt mehrere Scans nacheinander in den Papierkorb
-- **Severity:** Medium
+- **Severity:** Medium – **Status: behoben** (2026-11-21)
 - **Schritte:** Mehrere Scans im Eingang → Strg + Entf gedrückt halten (≥ 2 s)
 - **Erwartet:** genau ein Scan im Papierkorb
 - **Tatsächlich:** Die Tastenwiederholung des Betriebssystems löst nach jeder kurzen Sperre (Server-Antwort + 1 s) den nächsten „Löschen“ aus, bis die Tasten losgelassen werden. Der Tastatur-Handler prüft `KeyboardEvent.repeat` nicht (`filing-section.tsx`). Per Code-Analyse bestätigt.
@@ -520,7 +520,7 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 - **Vorschlag:** Tastendrücke mit `e.repeat === true` ignorieren (für alle drei Kürzel).
 
 #### BUG-5: Meldungen sprechen beim Löschen von „Ablegen“
-- **Severity:** Low
+- **Severity:** Low – **Status: behoben** (2026-11-21)
 - **Schritte:** „Löschen“, wenn der Eingang keine Schreibrechte hat bzw. wenn eine identische Datei schon im Papierkorb liegt und das Original gesperrt ist
 - **Tatsächlich:** „Ablegen nicht möglich (keine Schreibrechte …)“, „Ablegen fehlgeschlagen …“ bzw. „Abgelegt als Scanner\Papierkorb\…, aber das Original konnte nicht …“ und der Vermerk „Bereits abgelegt – Original noch im Eingang“
 - **Erwartet:** Wortlaut passend zum Papierkorb (z. B. „Verschieben in den Papierkorb nicht möglich …“)
@@ -528,6 +528,11 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 
 **Ergebnis:** 11/11 Kriterien bestanden. Keine Critical/High-Bugs; 1 Medium, 1 Low.
 - **Production Ready:** YES (BUG-4 und BUG-5 empfohlen vor dem Deploy, da klein)
+
+**Nachtest nach Fixes (2026-11-21)**
+- BUG-4: Der Tastatur-Handler ignoriert wiederholte Tastendrücke (`KeyboardEvent.repeat`) für Strg + Entf, Strg + Enter und Strg + Umschalt + Enter und unterdrückt deren Standardaktion. Neue Tests: Komponententest „Gehaltene Tasten“ und E2E „Gehaltenes Strg + Entf schiebt nur einen Scan in den Papierkorb“ (echte Tastenwiederholung in Chromium, Firefox, WebKit) → bestanden.
+- BUG-5: Eigene Meldungen für den Papierkorb (`TRASH_MESSAGES`, `filingMessage()` in `src/lib/filing-api.ts`). Der Hook merkt sich je Scan, mit welchem Knopf die Kopie entstand (`Map` statt `Set`), damit der Vermerk passt: „Liegt bereits im Papierkorb – Original noch im Eingang. Erneut löschen bereinigt nur den Eingang.“ Neuer Komponententest → bestanden.
+- Vitest 312/312, Playwright PROJ-5 103 bestanden / 5 übersprungen (Mobile ohne Tastatur), `tsc` ohne Fehler.
 
 ## Deployment
 **Deployed:** 2026-11-21 – lokaler Produktivbetrieb (kein Hosting, laut PRD nur auf dem eigenen PC)

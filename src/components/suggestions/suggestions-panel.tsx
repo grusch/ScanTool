@@ -17,7 +17,7 @@ import { useMounted } from "@/hooks/use-mounted"
 import { useScanAnalysis } from "@/hooks/use-scan-analysis"
 import { ANALYSIS_MESSAGES } from "@/lib/analysis-api"
 import type { FilingBusy } from "@/hooks/use-filing"
-import type { FilingRequest } from "@/lib/filing-types"
+import type { FilingRequest, FilingTarget } from "@/lib/filing-types"
 import type { InboxFile } from "@/lib/inbox-types"
 import {
   buildFileName,
@@ -40,7 +40,8 @@ interface SuggestionsPanelProps {
   onResetName: () => void
   /** Filing (PROJ-5) */
   filingBusy: FilingBusy
-  alreadyCopied: boolean
+  /** Copy is at the target, original still in the inbox → which button was used */
+  alreadyCopied: FilingTarget | undefined
   onFile: (request: FilingRequest) => void
   /** Scan vanished → refresh the list (selection moves on, PROJ-2 rules) */
   onScanMissing: () => void

@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react"
 import { toast } from "sonner"
-import { FILING_MESSAGES, fileScan, UNDO_MESSAGES, undoFiling } from "@/lib/filing-api"
+import { fileScan, filingMessage, UNDO_MESSAGES, undoFiling } from "@/lib/filing-api"
 import type { FilingRequest, FilingTarget } from "@/lib/filing-types"
 
 /** How long the "Abgelegt …" message with "Rückgängig" stays (PROJ-5) */
@@ -30,8 +30,8 @@ interface UseFilingOptions {
 export function useFiling({ refresh, onRestored }: UseFilingOptions) {
   const [busy, setBusy] = useState<FilingBusy>(null)
   const busyRef = useRef(false)
-  // Scans whose copy is in the archive but whose original could not be deleted
-  const [alreadyCopied, setAlreadyCopied] = useState<ReadonlySet<string>>(new Set())
+  // Scans whose copy is at the target but whose original could not be deleted → which button was used
+  const [alreadyCopied, setAlreadyCopied] = useState<ReadonlyMap<string, FilingTarget>>(new Map())
 
   const undo = useCallback(
     async (token: string) => {
@@ -56,29 +56,30 @@ export function useFiling({ refresh, onRestored }: UseFilingOptions) {
       setBusy(request.target)
       // true once the scan has left the inbox → the next scan gets selected
       let moved = false
+      const trash = request.target === "papierkorb"
       try {
         const res = await fileScan(request)
         if (!res.ok) {
-          toast.error(FILING_MESSAGES[res.code])
+          toast.error(filingMessage(request.target, res.code))
           if (res.code === "not_found") await refresh()
           return
         }
         if (res.status === "copied_not_deleted") {
-          setAlreadyCopied((s) => new Set(s).add(request.scan))
-          toast.warning(`Abgelegt als ${res.location}, aber das Original konnte nicht aus dem Eingang gelöscht werden.`, {
-            duration: UNDO_TOAST_MS,
-          })
+          setAlreadyCopied((s) => new Map(s).set(request.scan, request.target))
+          toast.warning(
+            `${trash ? "Liegt bereits im Papierkorb" : "Abgelegt"} als ${res.location}, aber das Original konnte nicht aus dem Eingang gelöscht werden.`,
+            { duration: UNDO_TOAST_MS }
+          )
           return
         }
         moved = true
         setAlreadyCopied((s) => {
           if (!s.has(request.scan)) return s
-          const next = new Set(s)
+          const next = new Map(s)
           next.delete(request.scan)
           return next
         })
         await refresh()
-        const trash = request.target === "papierkorb"
         const text =
           res.status === "already_filed"
             ? `${trash ? "War bereits im Papierkorb" : "War bereits abgelegt"} – Eingang bereinigt (${res.location})`

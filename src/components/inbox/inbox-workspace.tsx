@@ -94,7 +94,7 @@ export function InboxWorkspace({ initialInbox, apiKeyPresent }: InboxWorkspacePr
         onNameChange={onNameChange}
         onResetName={onResetName}
         filingBusy={filing.busy}
-        alreadyCopied={selected !== null && filing.alreadyCopied.has(selected)}
+        alreadyCopied={selected !== null ? filing.alreadyCopied.get(selected) : undefined}
         onFile={filing.file}
       />
     </div>

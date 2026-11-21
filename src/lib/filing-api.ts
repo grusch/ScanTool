@@ -1,5 +1,5 @@
 // Browser-side client for filing (PROJ-5).
-import type { FilingErrorCode, FilingRequest, FilingResponse, UndoResponse } from "./filing-types"
+import type { FilingErrorCode, FilingRequest, FilingResponse, FilingTarget, UndoResponse } from "./filing-types"
 
 async function post<T>(url: string, body: unknown, fallback: T): Promise<T> {
   try {
@@ -32,6 +32,20 @@ export const FILING_MESSAGES: Record<FilingErrorCode, string> = {
   no_permission: "Ablegen nicht möglich (keine Schreibrechte oder kein Speicherplatz) – nichts wurde gelöscht.",
   invalid_request: "Ungültiger Dateiname oder Zielordner.",
   unknown: "Ablegen fehlgeschlagen – antwortet der lokale Server? Nichts wurde gelöscht.",
+}
+
+/** Wording for „Löschen“ (→ Scanner\Papierkorb\) – nothing is "filed" there (QA BUG-5) */
+export const TRASH_MESSAGES: Record<FilingErrorCode, string> = {
+  ...FILING_MESSAGES,
+  archive_unreachable: "Papierkorb-Ordner nicht erreichbar – der Scan bleibt im Eingang.",
+  no_permission: "Verschieben in den Papierkorb nicht möglich (keine Schreibrechte oder kein Speicherplatz) – nichts wurde gelöscht.",
+  invalid_request: "Ungültiger Scan-Name.",
+  unknown: "Verschieben in den Papierkorb fehlgeschlagen – antwortet der lokale Server? Nichts wurde gelöscht.",
+}
+
+/** Error text for a failed filing, matching the button that was used */
+export function filingMessage(target: FilingTarget, code: FilingErrorCode): string {
+  return (target === "papierkorb" ? TRASH_MESSAGES : FILING_MESSAGES)[code]
 }
 
 export const UNDO_MESSAGES: Record<Exclude<UndoResponse, { ok: true }>["code"], string> = {

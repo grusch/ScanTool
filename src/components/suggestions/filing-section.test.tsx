@@ -352,4 +352,41 @@ describe("Löschen → Papierkorb (PROJ-5)", () => {
     expect(await screen.findByText(/Eingangsordner nicht erreichbar/)).toBeInTheDocument()
     expect(screen.getByRole("option", { name: /a\.pdf/ })).toBeInTheDocument()
   })
+
+  it("speaks of the trash, not of filing, in errors and the „already copied“ note (QA BUG-5)", async () => {
+    filingAnswer = () => ({ ok: false, code: "no_permission" })
+    renderWorkspace()
+    fireEvent.click(trashButton())
+    expect(await screen.findByText(/Verschieben in den Papierkorb nicht möglich/)).toBeInTheDocument()
+    expect(screen.queryByText(/Ablegen nicht möglich/)).not.toBeInTheDocument()
+
+    filingAnswer = () => filed("Scanner\\Papierkorb\\a.pdf", { status: "copied_not_deleted", undoToken: undefined })
+    await waitFor(() => expect(trashButton()).toBeEnabled())
+    fireEvent.click(trashButton())
+    expect(await screen.findByText(/Liegt bereits im Papierkorb als Scanner\\Papierkorb\\a\.pdf, aber das Original/)).toBeInTheDocument()
+    expect(screen.getByText(/Liegt bereits im Papierkorb – Original noch im Eingang\. Erneut löschen/)).toBeInTheDocument()
+    expect(screen.queryByText(/Bereits abgelegt – Original noch im Eingang/)).not.toBeInTheDocument()
+  })
+})
+
+describe("Gehaltene Tasten (QA BUG-4)", () => {
+  it("auto-repeated Strg + Entf / Strg + Enter / Strg + Umschalt + Enter do nothing – only the first press counts", async () => {
+    filingAnswer = (req) => filed(`Scanner\\Papierkorb\\${req.scan}`)
+    renderWorkspace()
+    fireEvent.change(nameField(), { target: { value: "Brief" } })
+    // repeats alone (key held since before) never act, and their default is prevented
+    expect(fireEvent.keyDown(document.body, { key: "Delete", ctrlKey: true, repeat: true })).toBe(false)
+    fireEvent.keyDown(document.body, { key: "Enter", ctrlKey: true, shiftKey: true, repeat: true })
+    fireEvent.keyDown(document.body, { key: "Enter", ctrlKey: true, repeat: true })
+    expect(filingCalls).toHaveLength(0)
+
+    // first press acts, the held key's repeats after the lock do not delete the next scans
+    fireEvent.keyDown(document.body, { key: "Delete", ctrlKey: true })
+    await waitFor(() => expect(filingCalls).toHaveLength(1))
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Löschen$/ })).toBeEnabled(), { timeout: 3000 })
+    for (let i = 0; i < 5; i++) fireEvent.keyDown(document.body, { key: "Delete", ctrlKey: true, repeat: true })
+    await new Promise((r) => setTimeout(r, 50))
+    expect(filingCalls).toHaveLength(1)
+    expect(screen.getByRole("option", { name: /b\.pdf/ })).toBeInTheDocument()
+  })
 })

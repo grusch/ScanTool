@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { validateFileName } from "@/lib/file-name-rules"
 import type { FilingBusy } from "@/hooks/use-filing"
-import type { FilingRequest } from "@/lib/filing-types"
+import type { FilingRequest, FilingTarget } from "@/lib/filing-types"
 import { parseSwissDate, type FileNameResult } from "@/lib/suggestion-form"
 import { cn } from "@/lib/utils"
 
@@ -26,8 +26,8 @@ interface FilingSectionProps {
   onResetName: () => void
   /** Filing running or short lock right after it – buttons and shortcuts are disabled */
   busy: FilingBusy
-  /** Copy is already in the archive, original could not be deleted */
-  alreadyCopied: boolean
+  /** Copy is already at the target (via this button), original could not be deleted */
+  alreadyCopied: FilingTarget | undefined
   onFile: (request: FilingRequest) => void
 }
 
@@ -75,6 +75,12 @@ export function FilingSection(props: FilingSectionProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return
+      if (e.key !== "Delete" && e.key !== "Enter") return
+      // A held key repeats – it must not file / delete one scan after the other (QA BUG-4)
+      if (e.repeat) {
+        e.preventDefault()
+        return
+      }
       // Strg + Entf: also from input fields – deletes the scan, not the word in the field
       if (e.key === "Delete" && !e.shiftKey) {
         e.preventDefault()
@@ -127,7 +133,9 @@ export function FilingSection(props: FilingSectionProps) {
       )}
       {alreadyCopied && (
         <p className="text-xs text-amber-700 dark:text-amber-400" role="status">
-          Bereits abgelegt – Original noch im Eingang. Erneut ablegen bereinigt nur den Eingang.
+          {alreadyCopied === "papierkorb"
+            ? "Liegt bereits im Papierkorb – Original noch im Eingang. Erneut löschen bereinigt nur den Eingang."
+            : "Bereits abgelegt – Original noch im Eingang. Erneut ablegen bereinigt nur den Eingang."}
         </p>
       )}
 
