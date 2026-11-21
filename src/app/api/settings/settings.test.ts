@@ -127,6 +127,18 @@ describe("POST /api/settings/check-folder", () => {
     expect((await file.json()).status).toBe("not_a_directory")
   })
 
+  it("reports an unreachable network path quickly (BUG-1)", async () => {
+    const start = Date.now()
+    const res = await CHECK(req("/x", "POST", { path: "\\\\192.0.2.1\\share\\Scans", kind: "inbox" }))
+    expect(await res.json()).toEqual({ status: "unreachable", path: "\\\\192.0.2.1\\share\\Scans" })
+    expect(Date.now() - start).toBeLessThan(5000)
+  })
+
+  it("does not try to create folders on an unreachable share (BUG-1)", async () => {
+    const res = await CREATE(req("/x", "POST", { path: "\\\\192.0.2.1\\share\\Neu", kind: "inbox" }))
+    expect((await res.json()).status).toBe("unreachable")
+  })
+
   it("validates input", async () => {
     expect((await CHECK(req("/x", "POST", { path: "relative\\dir", kind: "inbox" }))).status).toBe(400)
     expect((await CHECK(req("/x", "POST", { path: inbox, kind: "other" }))).status).toBe(400)

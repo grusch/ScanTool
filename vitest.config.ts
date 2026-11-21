@@ -8,6 +8,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // Unit/integration tests only – Playwright E2E specs in tests/ run via `npm run test:e2e`
+    include: ['src/**/*.test.{ts,tsx}'],
   },
   resolve: {
     alias: {

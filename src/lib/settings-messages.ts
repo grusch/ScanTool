@@ -12,6 +12,8 @@ export function folderCheckMessage(check: FolderCheck, showPdfCount: boolean): s
       return "Pfad ist kein Ordner"
     case "no_access":
       return "Kein Lese-/Schreibzugriff auf diesen Ordner"
+    case "unreachable":
+      return "Netzwerkpfad nicht erreichbar – ist das Gerät (z. B. NAS) eingeschaltet und im Netz?"
   }
 }
 

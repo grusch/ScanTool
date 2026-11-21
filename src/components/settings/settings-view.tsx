@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ApiSettingsCard } from "@/components/settings/api-settings-card"
 import { FolderSettingsCard } from "@/components/settings/folder-settings-card"
 import { fetchSettingsStatus } from "@/lib/settings-api"
+import { folderCheckMessage } from "@/lib/settings-messages"
 import type { SettingsStatusResponse } from "@/lib/settings-types"
 
 export function SettingsView() {
@@ -74,8 +75,17 @@ export function SettingsView() {
       {missing.map((c) => (
         <Alert variant="destructive" key={c.path}>
           <CircleAlert className="h-4 w-4" aria-hidden />
-          <AlertTitle>Ordner nicht mehr gefunden</AlertTitle>
-          <AlertDescription className="break-all font-mono text-sm">{c.path}</AlertDescription>
+          <AlertTitle>
+            {c.status === "unreachable"
+              ? "Netzwerkpfad nicht erreichbar"
+              : c.status === "not_found"
+                ? "Ordner nicht mehr gefunden"
+                : "Ordner nicht mehr verwendbar"}
+          </AlertTitle>
+          <AlertDescription className="space-y-1">
+            <p className="break-all font-mono text-sm">{c.path}</p>
+            {c.status !== "not_found" && <p>{folderCheckMessage(c, false)}</p>}
+          </AlertDescription>
         </Alert>
       ))}
 

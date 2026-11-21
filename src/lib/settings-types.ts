@@ -2,7 +2,7 @@
 
 export type FolderKind = "inbox" | "archive"
 
-export type FolderStatus = "ok" | "not_found" | "not_a_directory" | "no_access"
+export type FolderStatus = "ok" | "not_found" | "not_a_directory" | "no_access" | "unreachable"
 
 export interface FolderCheck {
   status: FolderStatus

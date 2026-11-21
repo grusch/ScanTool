@@ -269,7 +269,8 @@ _Stand 2026-11-21 – /backend_
 **Tests:** 42 grün (`npm test`) – 13 Pfad-Unit-Tests, 18 Integrationstests für Einstellungen/Ordner/Guard mit echten Temp-Ordnern, 11 für den Verbindungstest mit gemocktem SDK (keine echten API-Aufrufe). `npm run build` fehlerfrei.
 
 **Abweichungen / offen:**
-- Schreibrecht wird per `fs.access(W_OK)` geprüft – unter Windows erkennt das nur das Schreibschutz-Attribut, nicht alle NTFS-Rechte. Bewusst kein Test-Schreibvorgang, um keine Dateien in den OneDrive-Eingang zu schreiben. Ein echter Rechtefehler würde spätestens beim Ablegen (PROJ-5) gemeldet.
+- Schreibrecht wird per `fs.access(W_OK)` geprüft (kein Test-Schreibvorgang, um keine Dateien in den Eingang zu schreiben). In QA bestätigt: NTFS-Sperren werden erkannt; das Schreibschutz-*Attribut* auf Ordnern blockiert unter Windows nichts und gilt daher korrekt als gültig.
+- Netzwerkpfade: SMB-Erreichbarkeitsprüfung (2 s) + 10-s-Obergrenze je Prüfung (Fix BUG-1, siehe QA).
 - `.env.local.example` konnte nicht angelegt werden (Zugriffssperre für `.env*`-Dateien) – muss manuell angelegt werden.
 
 ## QA Test Results
@@ -324,7 +325,7 @@ _Stand 2026-11-21 – /backend_
 - [x] EC4 Leerer Eingangsordner → „0 PDFs", gültig
 - [ ] EC5 OneDrive „Dateien bei Bedarf" – nicht testbar ohne Online-only-Ordner; laut Spec erst PROJ-2/3 relevant
 - [x] EC6 Ordner gelöscht während Nutzung → beim nächsten Aufruf erkannt (AC15)
-- [ ] EC7 Netzlaufwerk / UNC-Pfad – erreichbar: funktioniert (`\\fritz.box\…`, 0,2 s); **nicht erreichbar: siehe BUG-1**
+- [x] EC7 Netzlaufwerk / UNC-Pfad – erreichbar: funktioniert (`\\fritz.box\…`, 0,2 s); nicht erreichbar: nach Fix von BUG-1 Meldung in ~2 s
 - [x] EC8 Hinweis „Nach Änderung Tool neu starten" vorhanden
 - [x] Zusatz: relativer Pfad → „Bitte einen vollständigen Pfad angeben"
 - [x] Zusatz: Schreibschutz-*Attribut* auf Ordner → gilt korrekt als gültig (blockiert unter Windows das Schreiben in Ordner nicht)
@@ -354,6 +355,12 @@ _Stand 2026-11-21 – /backend_
   4. Actual: Seite lädt bzw. „Prüfe Ordner …" ~42 s (gemessen), danach „Ordner nicht gefunden" mit Knopf „Ordner anlegen" – irreführend, Anlegen dauert erneut ~40 s und schlägt fehl
 - **Relevanz:** hoch für diesen Nutzer – der Eingang liegt auf der Fritz!Box-NAS
 - **Priority:** Fix in next sprint (vor PROJ-2 sinnvoll, da die Eingangsliste denselben Pfad liest)
+- **Status: ✅ Behoben (2026-11-21)**
+  - Vor jedem Zugriff auf einen UNC-Pfad wird der Server per TCP auf den SMB-Ports 445/139 geprüft (max. 2 s, `src/lib/server/network.ts`); nicht erreichbar → neuer Status `unreachable`
+  - Jede Ordnerprüfung bzw. jedes Anlegen bricht nach spätestens 10 s ab (`withTimeout`) → ebenfalls `unreachable`
+  - Meldung „Netzwerkpfad nicht erreichbar – ist das Gerät (z. B. NAS) eingeschaltet und im Netz?", **kein** Knopf „Ordner anlegen"; Hinweis auf der Einstellungsseite „Netzwerkpfad nicht erreichbar" statt „Ordner nicht mehr gefunden"
+  - Nachgemessen: unbekannter Host 1,8 s, nicht erreichbare IP 2,0 s (vorher 42 s); erreichbare Fritz!Box-NAS unverändert 0,2 s
+  - Tests: 6 Unit-Tests (`network.test.ts`), 2 Integrationstests, 2 E2E-Tests (×4 Browser) – alle grün
 
 #### BUG-2: Origin-Prüfung erlaubt andere lokale Ports
 - **Severity:** Low
@@ -378,11 +385,12 @@ _Stand 2026-11-21 – /backend_
 
 ### Summary
 - **Acceptance Criteria:** 23/23 passed
-- **Edge Cases:** 8/10 ok, 1 nicht testbar (EC5), 1 mit Bug (EC7 → BUG-1)
-- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low)
+- **Edge Cases:** 9/10 ok, 1 nicht testbar (EC5)
+- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low) – BUG-1 behoben, BUG-2/BUG-3 offen (Low)
+- **Tests nach Fix:** Vitest 51/51, Playwright 128/128 (32 Tests × 4 Browser-Profile)
 - **Security:** Pass (1 Low-Finding)
 - **Production Ready:** YES (keine Critical/High-Bugs)
-- **Recommendation:** Freigeben; BUG-1 vor PROJ-2 beheben, da der Eingang auf dem NAS liegt
+- **Recommendation:** Freigegeben; BUG-1 behoben. BUG-2/BUG-3 optional.
 
 ## Deployment
 _To be added by /deploy_

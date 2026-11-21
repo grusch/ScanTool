@@ -264,6 +264,22 @@ test.describe('PROJ-1 Edge Cases', () => {
     await expect(page.getByText('Ordner gefunden, 0 PDFs')).toBeVisible()
   })
 
+  test('EC7 / BUG-1: Nicht erreichbarer Netzwerkpfad wird schnell gemeldet, ohne „Ordner anlegen"', async ({ page }) => {
+    // 192.0.2.1 = TEST-NET-1 (RFC 5737), never reachable
+    await inboxField(page).fill('\\\\192.0.2.1\\share\\Scans')
+    await expect(page.getByText('Netzwerkpfad nicht erreichbar', { exact: false })).toBeVisible({ timeout: 6000 })
+    await expect(page.getByRole('button', { name: 'Ordner anlegen' })).toHaveCount(0)
+  })
+
+  test('EC7 / BUG-1: Gespeicherter, nicht erreichbarer Netzwerkpfad sperrt die Hauptansicht ohne Hänger', async ({ page }) => {
+    await writeSettings('\\\\192.0.2.1\\share\\Scans', archive)
+    const start = Date.now()
+    await page.goto('/')
+    await expect(page).toHaveURL(/\/einstellungen$/)
+    await expect(page.getByRole('alert').filter({ hasText: 'Netzwerkpfad nicht erreichbar' }).first()).toBeVisible()
+    expect(Date.now() - start).toBeLessThan(10_000)
+  })
+
   test('EC-extra: Relativer Pfad wird abgewiesen', async ({ page }) => {
     await fillFolders(page, 'Scans\\Eingang', archive)
     await page.getByRole('button', { name: 'Speichern' }).click()
