@@ -1,6 +1,6 @@
 # PROJ-5: Prüfen & Ablegen
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -316,7 +316,127 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 **Live (mit Zustimmung, eigene Testdatei, NAS → OneDrive):** Ablegen 1,4 s, Inhalt identisch, Datum erhalten, keine Zwischendateien; Rückgängig 0,8 s, Datei wieder im Eingang und aus der Ablage entfernt; Testdatei danach gelöscht. Dabei wurde `Finanzen\Rechnungen6\` neu angelegt (bleibt leer bestehen). Der Nutzer hat zudem selbst einen Brief per „Scan" abgelegt → korrekt in `Scanner\Abgelegt\` mit Originaldatum.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-11-21
+**App URL:** isolierter Produktions-Server Port 3100 (E2E, echte Dateien in Temp-Ordnern) + Dev 127.0.0.1:3000
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- **Vitest:** 275/275 grün, davon für PROJ-5:
+  - 31 Integrationstests mit echten Dateien
+  - 21 Tests für die Dateinamen-Regel
+  - 17 Komponententests für Ablage-Bereich, Toast und Rückgängig
+- **Playwright:** neu `tests/PROJ-5-pruefen-ablegen.spec.ts`, 18 Tests × 4 Browser. Echtes Ablegen in isolierten Temp-Ordnern: Rechnung, Scan, Rückgängig, Konflikt, identisch, Ablage weg, Doppelklick, Tastatur, Darstellung, Schnittstelle.
+- **Gesamtlauf** inkl. Regression PROJ-1 bis PROJ-4: **488 grün, 6 rot, 6 übersprungen**. Die 6 roten sind alle PROJ-5, siehe BUG-1 (4×) und BUG-2 (2×, WebKit/Mobile Safari). PROJ-1 bis PROJ-4 sind ohne Regression.
+- **Live** (Backend-Phase, mit Zustimmung, eigene Testdatei NAS → OneDrive): Ablegen 1,4 s, Rückgängig 0,8 s, Inhalt + Datum erhalten. Der Nutzer hat selbst einen Brief per „Scan“ korrekt abgelegt.
+
+### Acceptance Criteria Status
+
+#### Dateiname-Feld
+- [x] Feld unter den Feldern, vorbelegt (Regel PROJ-4), daneben „Rechnung“/„Scan“
+- [x] Folgt den Feldern, solange nicht selbst geändert
+- [x] Eigener Name bleibt, „Aus Feldern übernehmen“ erscheint
+- [x] „Aus Feldern übernehmen“ stellt die Automatik wieder her
+- [x] `.pdf` wird ergänzt
+- [x] Ungültige Namen (`/`, reserviert, leer, > 100 Zeichen, Punkt/Leerzeichen am Ende) → Meldung, „Rechnung“ gesperrt
+- [x] Fehlende Teile → Teilname mit Datum + Hinweis (geänderte Anforderung); ohne Datum leer
+- [x] Eingaben inkl. eigener Name bleiben beim Scan-Wechsel
+
+#### Knopf „Rechnung“
+- [x] Verschiebt ohne Rückfrage nach `Rechnungen\<Jahr aus Datumsfeld>\` (E2E: 2025 aus dem Datumsfeld)
+- [x] Fehlende Ordner werden angelegt
+- [x] Ohne gültiges Datum/Namen gesperrt, Tooltip nennt den Grund
+- [x] Datei ist danach nicht mehr im Eingang
+
+#### Knopf „Scan“
+- [x] Nach `<Eingang>\Abgelegt\` mit Namen bzw. Originalnamen (Chromium/Firefox; in WebKit durch BUG-2 behindert)
+- [x] `Abgelegt` wird angelegt
+- [x] Erscheint nicht mehr in der Liste
+
+#### Nach dem Ablegen
+- [x] Scan verschwindet, nächster wird ausgewählt, Vorschau/Analyse starten
+- [x] Meldung ca. 8 s mit Ablageort und „Rückgängig“
+- [x] Rückgängig: Originalname, wieder in der Liste und ausgewählt, Eingaben wieder da, Scan-Datum unverändert
+- [ ] **BUG-1:** „Während des Ablegens passiert nichts“ gilt nur, solange das Ablegen läuft. Ein zweiter Klick bzw. ein Kürzel kurz danach legt den **nächsten** Scan ab.
+
+#### Namenskonflikte
+- [x] Nie überschreiben, `_2`/`_3`, vor `_Garantie`, Meldung „(Name war schon vergeben)“
+- [x] Identische Datei → „War bereits abgelegt – Eingang bereinigt“
+
+#### Sicheres Verschieben & Fehler
+- [x] Original erst nach geprüfter Kopie gelöscht (Integration: kaputte Kopie erkannt; live NAS → OneDrive)
+- [x] Ablage nicht erreichbar → Meldung, Scan + Eingaben bleiben (E2E)
+- [x] NAS nicht erreichbar → nichts verändert (Integration)
+- [x] Original gesperrt → Kopie bleibt, Vermerk, zweiter Versuch bereinigt (Integration + Komponente)
+- [x] Scan verschwunden → Meldung + Liste aktualisiert
+- [x] Keine Rechte / kein Platz → Meldung, nichts gelöscht, keine Zwischendatei
+
+#### Tastatur
+- [x] Strg + Enter aus einem Feld = Rechnung, Strg + Umschalt + Enter = Scan
+- [x] Gesperrte „Rechnung“ → Hinweis statt Ablegen
+- [x] Tooltip zeigt Kürzel
+
+#### Darstellung
+- [x] 375 / 768 / 1440 px: Feld + Knöpfe sichtbar, kein seitliches Scrollen; Desktop: Ablage-Bereich als feste Fußzeile
+- [x] Kein Scan → kein Ablage-Bereich
+- [ ] **BUG-2:** Die Toast-Meldung liegt über den Knöpfen (unten rechts)
+
+### Edge Cases Status
+- [x] Zwei Rechnungen gleicher Name → `_2`
+- [x] Derselbe Scan doppelt → nur Eingang bereinigen
+- [x] Jahr aus dem Datumsfeld statt aus dem Namen
+- [x] Umlaute / `&` / Punkt im Namen erlaubt; reservierte Namen abgelehnt
+- [x] Rückgängig bei belegtem Originalnamen → `_2` (Integration)
+- [x] Rückgängig, Datei inzwischen weg → „nicht mehr am Ablageort“
+- [x] Abbruch beim Kopieren → Zwischendatei entfernt, Original bleibt (Integration)
+- [x] OneDrive: Zwischendatei `~$…tmp` wird nicht hochgeladen; live keine Reste
+- [ ] **BUG-1:** Sehr schnelles Ablegen hintereinander (Strg + Enter / Doppelklick)
+- [x] Ablegen während die KI noch läuft: möglich, sobald der Name gültig ist (Komponente)
+
+### Security Audit Results
+- [x] Nur lokale Anfragen (fremde Origin/cross-site → 403, beide Schnittstellen)
+- [x] Zielordner nur aus den Einstellungen; Pfade in Scan-Name oder Dateiname, fremde Ziele, ungültiges Jahr → 400, nichts verändert (Integration + E2E)
+- [x] Ablage-Stammordner wird nie angelegt (kein Schreiben an unerwarteten Orten)
+- [x] Nie überschreiben: Prüfung direkt vor dem Umbenennen; gleichzeitige Anfragen pro Scan gesperrt (1 Ablage)
+- [x] Rückgängig nur per zufälliger, einmaliger, kurzlebiger Kennung (UUID); kein Pfad vom Browser
+- [ ] **BUG-3 (Low):** Dateinamen mit `~$` am Anfang sind erlaubt. OneDrive synchronisiert solche Dateien nicht, und die Eingangsliste blendet sie aus.
+
+### Bugs Found
+
+#### BUG-1: Doppelklick bzw. Kürzel legt zusätzlich den nächsten Scan ab
+- **Severity:** High
+- **Steps to Reproduce:**
+  1. Drei Scans im Eingang, beim ersten Datum/Lieferant/Beschreibung ausfüllen
+  2. Auf „Rechnung“ doppelklicken (oder klicken und sofort Strg + Enter drücken)
+  3. Expected: Nur der erste Scan wird abgelegt.
+  4. Actual: Der erste Scan wird korrekt abgelegt. Sobald das Ablegen fertig ist, wirkt der zweite Klick/Tastendruck auf den **nun ausgewählten nächsten Scan**. Er landet ungeprüft als `261113_.pdf` (Teilname nur mit Datum) in `Rechnungen\2026\`. Reproduziert in allen 4 Browsern (in einem früheren Einzellauf zufällig grün → Timing-abhängig).
+- **Ursache (Hinweis):** Die Sperre gilt nur während der Anfrage. Danach wird sofort der nächste Scan ausgewählt, und der gepufferte Auslöser trifft ihn. Der seit der letzten Änderung gültige Teilname (nur Datum) macht „Rechnung“ beim nächsten Scan sofort aktiv.
+- **Vorschlag:** Nach dem Ablegen Knöpfe und Kürzel für kurze Zeit (z. B. 1 s) bzw. bis der Nutzer im neuen Scan etwas tut, gesperrt lassen. Oder ein Auslöser zählt nur für den Scan, auf den er sich bezog.
+- **Priority:** Fix before deployment (ein Scan wird ohne Prüfung abgelegt; Rückgängig wäre möglich, wird aber leicht übersehen)
+
+#### BUG-2: Toast-Meldung verdeckt die Ablage-Knöpfe
+- **Severity:** Medium
+- **Steps to Reproduce:** Desktop-Fenster, Scan ablegen. Danach gleich beim nächsten Scan auf „Scan“ (oder „Rechnung“) klicken.
+- **Expected:** Knöpfe sind klickbar.
+- **Actual:** Die Meldung (unten rechts, 8 s) liegt über dem Ablage-Bereich und fängt den Klick ab. In WebKit/Mobile Safari war „Scan“ deshalb nicht klickbar (Test-Timeout).
+- **Workaround:** Tastenkürzel oder ca. 8 s warten
+- **Vorschlag:** Meldung unten in der Mitte bzw. oben rechts anzeigen oder über dem Ablage-Bereich versetzen
+- **Priority:** Fix before deployment
+
+#### BUG-3: Dateiname mit `~$` am Anfang erlaubt
+- **Severity:** Low
+- **Steps to Reproduce:** Dateiname `~$Rechnung.pdf` eingeben → „Rechnung“
+- **Expected:** Name wird abgelehnt (wie in der Eingangsliste ausgeblendet)
+- **Actual:** Datei wird abgelegt, OneDrive lädt sie nicht hoch
+- **Priority:** Nice to have (in `validateFileName` ergänzen)
+
+### Summary
+- **Acceptance Criteria:** 32/34 passed (2 failed: BUG-1, BUG-2)
+- **Edge Cases:** 10/11 ok, 1 mit Bug (BUG-1)
+- **Bugs Found:** 3 total (0 critical, 1 high, 1 medium, 1 low)
+- **Security:** Pass (1 Low)
+- **Production Ready:** **NO**, BUG-1 (High) zuerst beheben
+- **Recommendation:** BUG-1 und BUG-2 beheben, dann QA erneut
 
 ## Deployment
 _To be added by /deploy_
