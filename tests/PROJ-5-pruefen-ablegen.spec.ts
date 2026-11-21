@@ -33,6 +33,8 @@ const field = (page: Page, label: string) => panel(page).getByLabel(label, { exa
 const nameField = (page: Page) => page.getByTestId('file-name-input')
 const invoiceBtn = (page: Page) => page.getByRole('button', { name: /^Rechnung$/ })
 const scanBtn = (page: Page) => page.getByRole('button', { name: /^Scan$/ })
+const trashBtn = (page: Page) => page.getByRole('button', { name: /^Löschen$/ })
+const trashDir = () => path.join(inbox, 'Papierkorb')
 const selected = (page: Page) => page.locator('[role="option"][aria-selected="true"]')
 
 async function fillInvoice(page: Page, date = '02.11.2026', supplier = 'Elektra Gaiserwald', description = 'Strom E-Mobility') {
@@ -223,11 +225,11 @@ test.describe('PROJ-5 Darstellung & Schutz', () => {
     { name: 'Tablet (768px)', width: 768, height: 1000 },
     { name: 'Desktop (1440px)', width: 1440, height: 900 },
   ]) {
-    test(`${vp.name}: Dateiname und beide Knöpfe sichtbar und bedienbar, kein seitliches Scrollen`, async ({ page }) => {
+    test(`${vp.name}: Dateiname und alle drei Knöpfe sichtbar und bedienbar, kein seitliches Scrollen`, async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height })
       await scan('a.pdf', 10)
       await open(page)
-      for (const loc of [nameField(page), invoiceBtn(page), scanBtn(page)]) {
+      for (const loc of [nameField(page), invoiceBtn(page), scanBtn(page), trashBtn(page)]) {
         await loc.scrollIntoViewIfNeeded()
         await expect(loc).toBeVisible()
         const b = (await loc.boundingBox())!
@@ -286,5 +288,136 @@ test.describe('PROJ-5 Darstellung & Schutz', () => {
     expect((await post({ scan: 'a.pdf', target: 'scan', fileName: null }, { origin: 'https://evil.example' })).status()).toBe(403)
     expect((await page.request.post('/api/filing/undo', { data: { token: 'x' }, headers: { origin: 'http://127.0.0.1:3100' } })).status()).toBe(400)
     expect(await exists(a)).toBe(true)
+  })
+})
+
+test.describe('PROJ-5 Löschen → Papierkorb', () => {
+  test('„Löschen": Originalname nach Scanner\\Papierkorb\\ (Ordner angelegt, Datum bleibt), nächster Scan ausgewählt', async ({ page }) => {
+    const a = await scan('a.pdf', 20)
+    await scan('b.pdf', 10)
+    const before = await fs.readFile(a)
+    await open(page)
+    await fillInvoice(page)
+    await nameField(page).fill('Eigener Name')
+    await trashBtn(page).click()
+    await expect(page.getByText(/In den Papierkorb verschoben: Scanner\\Papierkorb\\a\.pdf/)).toBeVisible()
+    await expect(selected(page)).toContainText('b.pdf')
+    await expect(page.getByRole('option').filter({ hasText: 'a.pdf' })).toHaveCount(0)
+    expect(await exists(a)).toBe(false)
+    expect(await ls(trashDir())).toEqual(['a.pdf'])
+    const moved = path.join(trashDir(), 'a.pdf')
+    expect((await fs.readFile(moved)).equals(before)).toBe(true)
+    expect(Math.abs((await fs.stat(moved)).mtimeMs - (SCAN_DATE.getTime() - 20 * 60_000))).toBeLessThan(2000)
+    expect(await ls(archive)).toEqual([]) // nothing in the archive
+  })
+
+  test('„Löschen" ist auch ohne Datum und mit ungültigem Namen aktiv', async ({ page }) => {
+    await scan('a.pdf', 10)
+    await open(page)
+    await field(page, 'Datum').fill('')
+    await nameField(page).fill('x|y')
+    await expect(invoiceBtn(page)).toBeDisabled()
+    await expect(trashBtn(page)).toBeEnabled()
+    await trashBtn(page).click()
+    await expect(page.getByText('Keine neuen Scans – alles abgelegt 🎉')).toBeVisible()
+    expect(await ls(trashDir())).toEqual(['a.pdf'])
+  })
+
+  test('„Rückgängig" holt den Scan aus dem Papierkorb zurück, Eingaben wieder da', async ({ page }) => {
+    const a = await scan('a.pdf', 20)
+    await scan('b.pdf', 10)
+    await open(page)
+    await field(page, 'Lieferant').fill('Digitec')
+    await trashBtn(page).click()
+    await page.getByRole('button', { name: 'Rückgängig' }).click()
+    await expect(page.getByText('Zurück im Eingang: a.pdf')).toBeVisible()
+    expect(await exists(a)).toBe(true)
+    expect(await ls(trashDir())).toEqual([])
+    await expect(selected(page)).toContainText('a.pdf')
+    await expect(field(page, 'Lieferant')).toHaveValue('Digitec')
+  })
+
+  test('Namenskonflikt im Papierkorb → _2; identische Datei → nur Eingang bereinigt', async ({ page }) => {
+    await fs.mkdir(trashDir())
+    await fs.writeFile(path.join(trashDir(), 'a.pdf'), 'anders')
+    await scan('a.pdf', 20)
+    const b = await scan('b.pdf', 10)
+    await fs.copyFile(b, path.join(trashDir(), 'b.pdf'))
+    await open(page)
+    await trashBtn(page).click()
+    await expect(page.getByText(/Scanner\\Papierkorb\\a_2\.pdf \(Name war schon vergeben\)/)).toBeVisible()
+    await expect(selected(page)).toContainText('b.pdf')
+    await expect(trashBtn(page)).toBeEnabled()
+    await trashBtn(page).click()
+    await expect(page.getByText(/War bereits im Papierkorb – Eingang bereinigt/)).toBeVisible()
+    expect(await ls(trashDir())).toEqual(['a.pdf', 'a_2.pdf', 'b.pdf'])
+    expect(await fs.readFile(path.join(trashDir(), 'a.pdf'), 'utf8')).toBe('anders')
+    expect(await ls(inbox)).toEqual(['Papierkorb'])
+  })
+
+  test('Strg + Entf aus einem Feld löscht den Scan, nicht das Wort; Entf allein tut nichts', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Keine Hardware-Tastatur')
+    const a = await scan('a.pdf', 20)
+    await scan('b.pdf', 10)
+    await open(page)
+    await field(page, 'Lieferant').fill('Digitec Galaxus')
+    await field(page, 'Lieferant').press('Home')
+    await field(page, 'Lieferant').press('Delete')
+    await expect(field(page, 'Lieferant')).toHaveValue('igitec Galaxus')
+    expect(await exists(a)).toBe(true)
+    await field(page, 'Lieferant').press('Control+Delete')
+    await expect(page.getByText(/In den Papierkorb verschoben: Scanner\\Papierkorb\\a\.pdf/)).toBeVisible()
+    await expect(selected(page)).toContainText('b.pdf')
+    expect(await ls(trashDir())).toEqual(['a.pdf'])
+  })
+
+  test('Doppelklick + Kürzel → genau ein Scan im Papierkorb', async ({ page, isMobile }) => {
+    await scan('a.pdf', 20)
+    await scan('b.pdf', 10)
+    await open(page)
+    await trashBtn(page).dblclick()
+    if (!isMobile) await page.keyboard.press('Control+Delete')
+    await expect(selected(page)).toContainText('b.pdf')
+    await page.waitForTimeout(300)
+    expect(await ls(trashDir())).toEqual(['a.pdf'])
+    expect(await ls(inbox)).toEqual(['Papierkorb', 'b.pdf'])
+  })
+
+  test('„Löschen" ist rot und von „Rechnung"/„Scan" abgesetzt; Meldung verdeckt ihn nicht', async ({ page }) => {
+    await scan('a.pdf', 20)
+    await scan('b.pdf', 10)
+    await open(page)
+    const bg = await trashBtn(page).evaluate((el) => getComputedStyle(el).backgroundColor)
+    const [r, g, b] = bg.match(/[\d.]+/g)!.map(Number)
+    expect(r, bg).toBeGreaterThan(g + 60) // reddish
+    expect(r, bg).toBeGreaterThan(b + 40)
+    const s = (await scanBtn(page).boundingBox())!
+    const t = (await trashBtn(page).boundingBox())!
+    // either clearly to the right of "Scan" or wrapped into its own row
+    expect(t.x >= s.x + s.width + 12 || t.y >= s.y + s.height).toBe(true)
+    await trashBtn(page).click()
+    const toast = page.getByText(/In den Papierkorb verschoben/)
+    await expect(toast).toBeVisible()
+    await expect(selected(page)).toContainText('b.pdf')
+    await trashBtn(page).scrollIntoViewIfNeeded()
+    const tb = (await toast.boundingBox())!
+    const bb = (await trashBtn(page).boundingBox())!
+    const overlap = tb.x < bb.x + bb.width && bb.x < tb.x + tb.width && tb.y < bb.y + bb.height && bb.y < tb.y + tb.height
+    expect(overlap).toBe(false)
+  })
+
+  test('Schnittstelle: Papierkorb nimmt keine Pfade an, Name wird ignoriert, fremde Webseiten abgewiesen', async ({ page }) => {
+    const a = await scan('a.pdf', 10)
+    const post = (data: unknown, headers: Record<string, string> = {}) =>
+      page.request.post('/api/filing', { data, headers: { origin: 'http://127.0.0.1:3100', ...headers } })
+    expect((await post({ scan: '..\\Finanzen\\a.pdf', target: 'papierkorb', fileName: null })).status()).toBe(400)
+    expect((await post({ scan: 'a.pdf', target: 'Papierkorb', fileName: null })).status()).toBe(400)
+    expect((await post({ scan: 'a.pdf', target: 'papierkorb', fileName: null }, { origin: 'https://evil.example' })).status()).toBe(403)
+    expect(await exists(a)).toBe(true)
+    const res = await post({ scan: 'a.pdf', target: 'papierkorb', fileName: '..\\..\\..\\Windows\\x.pdf' })
+    expect(res.status()).toBe(200)
+    expect(await res.json()).toMatchObject({ ok: true, location: 'Scanner\\Papierkorb\\a.pdf' })
+    expect(await ls(trashDir())).toEqual(['a.pdf'])
+    expect(await ls(tmp)).toEqual(['Finanzen', 'Scanner'])
   })
 })

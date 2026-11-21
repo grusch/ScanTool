@@ -1,6 +1,6 @@
 # PROJ-5: Prüfen & Ablegen
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -478,6 +478,56 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 - **Security:** Pass
 - **Production Ready:** YES
 - **Recommendation:** Deploy (lokal: `npm run live:build`)
+
+### QA Erweiterung „Löschen“ → Papierkorb (2026-11-21)
+
+**Getestet:** isolierter Produktions-Server Port 3100 (eigene Daten, kein API-Schlüssel, echte Dateien in Temp-Ordnern). Die echten Ordner (NAS/OneDrive) wurden nicht berührt.
+
+**Automatisierte Tests**
+- Vitest: 310/310 (neu: 7 Komponenten- und 8 Integrationstests)
+- Playwright PROJ-5: 100 bestanden, 4 übersprungen (Tastatur-Tests auf Mobile Safari) in Chromium, Firefox, WebKit, Mobile Safari. Neu sind 8 Tests im Block „PROJ-5 Löschen → Papierkorb“; der Darstellungs-Test prüft jetzt alle drei Knöpfe.
+- Regression alle Features (PROJ-1 bis PROJ-5): 529/529 bestanden.
+- Hinweis Umgebung: `npm run build` konnte `.next\static\…` nicht löschen (EPERM, vermutlich Sperre durch OneDrive oder einen alten Prozess). Der Regressionslauf lief deshalb mit `SCANTOOL_DIST_DIR=.next-qa`. Danach wurden die von Next.js eingetragenen Zeilen in `tsconfig.json` zurückgenommen und der Ordner gelöscht. Kein Fehler im Produkt.
+
+**Abnahmekriterien „Knopf Löschen“**
+- [x] Verschiebt ohne Rückfrage unter dem Originalnamen nach `<Eingang>\Papierkorb\`, unabhängig von Dateiname-Feld und Feldern (Inhalt identisch, Datum erhalten)
+- [x] Aktiv auch ohne Datum und mit ungültigem Dateinamen
+- [x] Ordner `Papierkorb` wird angelegt
+- [x] Scan verschwindet aus der Liste; nichts wird endgültig gelöscht, die Ablage bleibt unberührt
+- [x] Namenskonflikt → `a_2.pdf`, nichts überschrieben; identische Datei → nur Eingang bereinigt („War bereits im Papierkorb – Eingang bereinigt“)
+- [x] Nächster Scan ausgewählt, Meldung „In den Papierkorb verschoben: …“ mit „Rückgängig“; Rückgängig holt Scan + Eingaben zurück
+- [x] Doppelklick und Kürzel während des Vorgangs → genau ein Scan im Papierkorb
+- [x] Eingang nicht erreichbar / Scan verschwunden → Meldungen wie beim Ablegen (Komponenten- und Integrationstests)
+- [x] Strg + Entf aus einem Eingabefeld löscht den Scan, nicht das Wort; Entf allein und Strg + Umschalt + Entf tun nichts
+- [x] Tooltip nennt das Kürzel
+- [x] Rot (destruktiv), abgesetzt von „Rechnung“/„Scan“; 375 / 768 / 1440 px alle drei Knöpfe sichtbar, kein seitliches Scrollen; Meldung verdeckt den Knopf nicht
+
+**Security Audit (Red Team)**
+- Pfad im Scan-Namen (`..\Finanzen\a.pdf`) mit Ziel `papierkorb` → 400, nichts verändert
+- Mitgeschickter Dateiname mit Pfad (`..\..\..\Windows\x.pdf`) wird ignoriert → Datei landet nur als `Scanner\Papierkorb\a.pdf`, ausserhalb des Temp-Ordners entsteht nichts
+- Falsch geschriebenes Ziel (`Papierkorb`, `loeschen`) → 400
+- Fremde Webseite (Origin `evil.example`) → 403
+- Kein endgültiges Löschen über die Schnittstelle möglich; schlimmster Fall bei Missbrauch: Scans landen im Papierkorb (wiederherstellbar)
+
+**Bugs gefunden**
+
+#### BUG-4: Gedrückt gehaltenes Strg + Entf schiebt mehrere Scans nacheinander in den Papierkorb
+- **Severity:** Medium
+- **Schritte:** Mehrere Scans im Eingang → Strg + Entf gedrückt halten (≥ 2 s)
+- **Erwartet:** genau ein Scan im Papierkorb
+- **Tatsächlich:** Die Tastenwiederholung des Betriebssystems löst nach jeder kurzen Sperre (Server-Antwort + 1 s) den nächsten „Löschen“ aus, bis die Tasten losgelassen werden. Der Tastatur-Handler prüft `KeyboardEvent.repeat` nicht (`filing-section.tsx`). Per Code-Analyse bestätigt.
+- **Auswirkung:** Kein Datenverlust (alles liegt im Papierkorb), aber „Rückgängig“ gibt es nur für den letzten Scan, die anderen müssen von Hand im Explorer zurückgeholt werden. Gleiches gilt bereits für gehaltenes Strg + Enter / Strg + Umschalt + Enter (bestehendes Verhalten, dort landen Scans sogar in der Ablage).
+- **Vorschlag:** Tastendrücke mit `e.repeat === true` ignorieren (für alle drei Kürzel).
+
+#### BUG-5: Meldungen sprechen beim Löschen von „Ablegen“
+- **Severity:** Low
+- **Schritte:** „Löschen“, wenn der Eingang keine Schreibrechte hat bzw. wenn eine identische Datei schon im Papierkorb liegt und das Original gesperrt ist
+- **Tatsächlich:** „Ablegen nicht möglich (keine Schreibrechte …)“, „Ablegen fehlgeschlagen …“ bzw. „Abgelegt als Scanner\Papierkorb\…, aber das Original konnte nicht …“ und der Vermerk „Bereits abgelegt – Original noch im Eingang“
+- **Erwartet:** Wortlaut passend zum Papierkorb (z. B. „Verschieben in den Papierkorb nicht möglich …“)
+- **Auswirkung:** nur Wortlaut, Verhalten korrekt
+
+**Ergebnis:** 11/11 Kriterien bestanden. Keine Critical/High-Bugs; 1 Medium, 1 Low.
+- **Production Ready:** YES (BUG-4 und BUG-5 empfohlen vor dem Deploy, da klein)
 
 ## Deployment
 **Deployed:** 2026-11-21 – lokaler Produktivbetrieb (kein Hosting, laut PRD nur auf dem eigenen PC)
