@@ -1,17 +1,17 @@
 # Project Context – ScanTool
 
 > Ist-Stand des Projekts. Stand: 2026-11-21.
-> Produktvision, Zielgruppe und Features folgen über `/init` → [docs/PRD.md](docs/PRD.md) und [features/INDEX.md](features/INDEX.md).
+> Produktvision, Zielgruppe und Features: [docs/PRD.md](docs/PRD.md) und [features/INDEX.md](features/INDEX.md).
 
 ## Status
 
 | Bereich | Stand |
 |---------|-------|
 | Projektidee / PRD | Festgelegt (`/init` am 2026-11-21) |
-| Features | 12 definiert (PROJ-1 bis PROJ-12), alle Status „Roadmap“ |
-| Frontend | Starter-Template, nur Startseite ([src/app/page.tsx](src/app/page.tsx)) |
-| Backend | Supabase vorgesehen, Client noch deaktiviert |
-| Deployment | Vercel vorgesehen, noch nicht eingerichtet |
+| Features | 12 definiert; PROJ-1 bis PROJ-3 **Deployed** (lokal), PROJ-4 bis PROJ-12 Roadmap |
+| Frontend | Einstellungen, Eingangsliste, PDF-Vorschau |
+| Backend | Next.js-API (Dateisystem, Claude API); Supabase erst ab P1 |
+| Deployment | Lokaler Produktivbetrieb auf http://127.0.0.1:3030 (`ScanTool.cmd` / `npm run live`), kein Hosting |
 
 ## Projektidee
 
@@ -76,7 +76,9 @@ docs/               PRD.md, Production-Guides
 ## Befehle
 
 ```bash
-npm run dev        # Dev-Server → http://localhost:3000
+npm run dev        # Dev-Server → http://127.0.0.1:3000
+npm run live       # ScanTool produktiv starten → http://127.0.0.1:3030 (öffnet Browser)
+npm run live:build # nach Code-Änderungen neu bauen (ScanTool vorher schliessen)
 npm run build      # Production-Build
 npm run lint       # ESLint
 npm test           # Vitest
@@ -95,7 +97,7 @@ npm run test:all   # Beide Test-Suites
 ## Offene Punkte
 
 - [x] `/init` ausführen: Projektidee, Zielgruppe und Feature-Roadmap festlegen
-- [ ] Claude-API-Schlüssel in der Anthropic Console anlegen (separat vom Abo) – Teil von PROJ-1
+- [x] Claude-API-Schlüssel in der Anthropic Console anlegen (separat vom Abo) – Teil von PROJ-1
 - [ ] Supabase-Access-Token erneuern (alter Token war im Chat sichtbar)
 - [ ] Optional: MCP-Server per `project_ref` auf ein Projekt beschränken
 - [ ] `.env.local` mit Supabase-URL und Anon-Key anlegen

@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Local production install builds into its own folder (.next-live), so dev server
+  // and E2E builds (.next) never overwrite the running app – see scripts/live.mjs
+  distDir: process.env.SCANTOOL_DIST_DIR || ".next",
   async headers() {
     return [
       {

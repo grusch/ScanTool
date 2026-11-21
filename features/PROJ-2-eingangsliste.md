@@ -1,6 +1,6 @@
 # PROJ-2: Eingangsliste
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -359,4 +359,13 @@ _Stand 2026-11-21 – /backend_
 - **Production Ready:** YES
 
 ## Deployment
-_To be added by /deploy_
+**Deployed:** 2026-11-21 – lokaler Produktivbetrieb (kein Hosting, laut PRD nur auf dem eigenen PC)
+**URL:** http://127.0.0.1:3030 (nur lokal erreichbar, Server lauscht ausschliesslich auf 127.0.0.1)
+**Version:** Git-Tag `v1.3.0-PROJ-3` (Release mit PROJ-1, PROJ-2, PROJ-3)
+
+- Start: Doppelklick auf `ScanTool.cmd` im Projektordner (bzw. Desktop-Verknüpfung darauf) oder `npm run live` – baut beim ersten Mal, startet den Produktions-Server und öffnet den Browser. Fenster offen lassen; Schliessen beendet ScanTool. Läuft ScanTool schon, wird nur der Browser geöffnet.
+- Nach Code-Änderungen: ScanTool-Fenster schliessen, `npm run live:build`, neu starten.
+- Eigener Build-Ordner `.next-live` und Port 3030 → Dev-Server (3000) und E2E-Builds (`.next`, 3100) stören den Produktivbetrieb nicht.
+- Einstellungen (`data/settings.json`) und API-Schlüssel (`.env.local`) sind dieselben wie im Dev-Betrieb.
+- Geprüft: Build ok, 126/126 Unit-/Integrationstests, Start/zweiter Start, Hauptansicht mit echten NAS-Scans und Vorschau in Chrome ohne Fehler, Bindung nur auf 127.0.0.1.
+- Vercel, Sentry, Lighthouse und Rate-Limiting aus dem Standard-Deploy-Skill entfallen (lokales Einzelnutzer-Tool ohne Internet-Zugang von aussen).
