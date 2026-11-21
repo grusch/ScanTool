@@ -105,7 +105,7 @@
 ## Open Questions
 - [ ] Reicht Haiku 5.5 für ≥ 80 % brauchbare Vorschläge? Erste QA-Stichprobe (4 echte Scans): Typ 4/4 richtig, bei beiden Rechnungen Datum/Lieferant/Betrag/Währung/Rechnungsnr. exakt richtig; nur der Stil der Beschreibung schwankt. Stichprobe klein → im Alltag weiter beobachten.
 - [ ] Tatsächliche Kosten pro Scan: noch nicht gemessen (Server protokolliert die Token-Nutzung nicht); Schätzung ~0,05–0,1 Rp. pro üblichem Scan.
-- [ ] **Änderungswunsch (2026-11-21, nach QA):** Datum für den Dateinamen = Rechnungsdatum; ist keines erkennbar, das Datum der PDF-Datei (Scan-Datum) als Vorschlag eintragen. Mit `/refine PROJ-4` bzw. bei PROJ-5 umsetzen.
+- [ ] **Änderungswunsch (2026-11-21, nach QA):** Datum für den Dateinamen = Rechnungsdatum; ist keines erkennbar, das Datum aus den Datei-Eigenschaften als Vorschlag eintragen – das **frühere von Erstelldatum und Änderungsdatum** der Datei (robust gegen Kopieren bzw. Bearbeiten; bei den Scans der Fritz!Box sind beide identisch). Hinweis im Formular: „Datum aus Datei-Eigenschaften". Nutzer bestätigt: nicht das PDF-interne Datum. Mit `/refine PROJ-4` bzw. bei PROJ-5 umsetzen.
 - [ ] Details zum Knopf „Scan" (Name des Unterordners im Scanner-Ordner, Umbenennen ja/nein) – in PROJ-5 klären.
 
 ## Decision Log
