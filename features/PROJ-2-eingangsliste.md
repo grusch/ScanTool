@@ -1,6 +1,6 @@
 # PROJ-2: Eingangsliste
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -218,6 +218,28 @@ Die Hauptseite liefert beim ersten Aufruf die Liste bereits mit (serverseitig ge
 
 ### F) Abhängigkeiten (zu installieren)
 Keine. Alles mit vorhandenen Paketen (Next.js, shadcn/ui, lucide-react, Zod) umsetzbar.
+
+## Implementation Notes (Frontend)
+_Stand 2026-11-21 – /frontend_
+
+**Gebaut:**
+- `src/components/inbox/inbox-workspace.tsx` – Arbeitsfläche (3 Spalten ab `lg`, darunter untereinander), hält die Auswahl zentral, wendet die Auswahl-Regeln bei jeder Listenänderung an, entfernt „neu" bei Auswahl; Platzhalter für PROJ-3 und PROJ-4/5
+- `src/components/inbox/inbox-list.tsx` – Kopf „Eingang (n)" + „Aktualisieren", Hinweis bei veraltetem Stand (ausgegraut, Uhrzeit), Ladeskelett, Fehlerzustand mit „Erneut versuchen", leerer Zustand mit Pfad, Auswahlliste (`role="listbox"`, ↑/↓, ausgewählter Eintrag wird in den sichtbaren Bereich gescrollt)
+- `src/components/inbox/inbox-list-item.tsx` – Eintrag: Name (gekürzt + Tooltip), Datum/Uhrzeit · Grösse, Badges „neu" / „seit X Tagen"
+- `src/hooks/use-inbox.ts` – Laden, 30-s-Intervall nur bei sichtbarem Tab, sofortige Aktualisierung beim Zurückkehren, keine parallelen Abfragen, letzter guter Stand bleibt bei Fehler/„nicht erreichbar", „neu"-Markierung (bis Auswahl, max. 60 s)
+- `src/lib/inbox-types.ts` – API-Vertrag (`InboxResponse`, `InboxFile`)
+- `src/lib/inbox-selection.ts` + Test – Auswahl-Regeln (13 Tests)
+- `src/lib/inbox-format.ts` + Test – Schweizer Datum/Uhrzeit, Grösse, „seit X Tagen" ab 7 Tagen, keine Markierung bei Zukunftsdatum (5 Tests)
+- `src/lib/inbox-api.ts` – Browser-Client für `GET /api/inbox`
+- `src/app/page.tsx` – zeigt die Arbeitsfläche (Zugangsprüfung aus PROJ-1 unverändert); `initialInbox` vorerst `null` → Liste lädt im Browser
+
+**Erwartete API (Backend):** `GET /api/inbox` → `InboxResponse` (siehe `inbox-types.ts`); bei nicht erreichbarem Ordner HTTP 200 mit `status: "unreachable"` und leerer Liste. Zusätzlich serverseitige Funktion für die Erstauslieferung der Liste mit der Seite.
+
+**Visuell geprüft** (Screenshots mit simulierten Daten, 1440 px und 375 px): Auswahl, ↓-Taste, „neu", „seit 13 Tagen", Kürzung langer Namen, kein horizontales Scrollen.
+
+**Abweichungen / Hinweise:**
+- Zwei Layout-Fallen behoben: shadcn-ScrollArea (Radix) rendert ihren Inhalt als Tabelle → lange Namen verbreiterten die Liste (per Klasse auf `block` gezwungen, Komponente selbst unverändert); einspaltiges Raster auf Mobile wuchs mit dem Inhalt (`grid-cols-1`).
+- Nebenbei: Typfehler in einem PROJ-1-Test (`test-connection.test.ts`, Mock-Rückgabewert) behoben – `next build` prüft Testdateien nicht, `tsc` schon.
 
 ## QA Test Results
 _To be added by /qa_

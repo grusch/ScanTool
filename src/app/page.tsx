@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
-import { Inbox } from "lucide-react"
 import { ApiKeyNotice } from "@/components/api-key-notice"
+import { InboxWorkspace } from "@/components/inbox/inbox-workspace"
 import { getSettingsStatus, isConfigured } from "@/lib/server/settings-service"
 
 // Always evaluate on request: folders may have been renamed or deleted meanwhile.
@@ -12,15 +12,10 @@ export default async function Home() {
   if (!isConfigured(status)) redirect("/einstellungen")
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8 sm:px-6">
+    <div className="flex w-full flex-col gap-4 px-4 py-4 sm:px-6 lg:h-[calc(100dvh-3.5rem)]">
       {!status.apiKeyPresent && <ApiKeyNotice />}
-      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-20 text-center">
-        <Inbox className="h-10 w-10 text-muted-foreground" aria-hidden />
-        <h1 className="text-lg font-semibold">Eingang</h1>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          Hier erscheinen bald die neuen Scans aus deinem Eingangsordner.
-        </p>
-      </div>
+      {/* Initial list is delivered by the PROJ-2 backend; until then it loads in the browser */}
+      <InboxWorkspace initialInbox={null} />
     </div>
   )
 }

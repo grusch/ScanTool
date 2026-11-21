@@ -34,7 +34,7 @@ describe("POST /api/settings/test-connection", () => {
   })
 
   it("succeeds with a minimal request on the smallest model", async () => {
-    create.mockResolvedValue({ content: [] })
+    create.mockResolvedValue({ content: [] } as unknown as Anthropic.Message)
     expect(await (await POST(req())).json()).toEqual({ ok: true })
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({ model: "claude-haiku-5-5", max_tokens: 1 })
