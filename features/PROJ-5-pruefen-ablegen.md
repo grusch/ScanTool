@@ -1,6 +1,6 @@
 # PROJ-5: Prüfen & Ablegen
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -103,6 +103,7 @@
 - **Browser:** Chrome, Edge, Firefox, Safari (aktuelle Versionen).
 
 ## Open Questions
+- [ ] Rückgängig-Kennungen gehen bei einem Neustart von ScanTool verloren (bewusst, Meldung dauert nur ~8 s) – reicht das in der Praxis?
 - [ ] Soll die Meldung nach dem Ablegen einen Link „Ordner öffnen" (Explorer) bekommen? – im MVP nicht vorgesehen, ggf. später.
 
 ## Decision Log
@@ -126,12 +127,159 @@
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Verschieben = Kopie unter Zwischenname → SHA-256 + Grösse prüfen → umbenennen → Original löschen (NAS → OneDrive); gleiches Laufwerk („Scan“) = direktes Umbenennen | Kein Datenverlust über Laufwerksgrenzen; keine halben Dateien in OneDrive | 2026-11-21 |
+| Neue Schnittstelle „Scan ablegen“: Browser sendet nur Scan-Name, Ziel (Enum), Dateiname, Jahr; Pfade bildet der Server aus den Einstellungen | Path Traversal ausgeschlossen; gleiche Namensprüfung wie PROJ-3/4 | 2026-11-21 |
+| Gemeinsame Dateinamen-Prüfregel (Browser + Server): verbotene Zeichen, Steuerzeichen, reservierte Windows-Namen, Punkt/Leerzeichen am Ende, max. 100 Zeichen, `.pdf` ergänzen | Sofortiges Feedback im Browser; Server prüft trotzdem selbst | 2026-11-21 |
+| Konflikt: nächste freie Nummer (`_2` …, vor `_Garantie`); identischer Inhalt (Prüfsumme) gegen gleichen Namen und Nummern-Varianten → nur Eingang bereinigen | Nie überschreiben, keine Duplikate | 2026-11-21 |
+| Fehlende Zielordner (`Rechnungen`, Jahr, `Abgelegt`) werden rekursiv angelegt | Kein manueller Schritt zum Jahreswechsel | 2026-11-21 |
+| Rückgängig über zufällige Kennung im Server-Arbeitsspeicher (~10 min), inkl. Originalname, Zeitstempel und KI-Vorschlag | Browser kennt keine Pfade; Fingerabdruck stimmt wieder; keine erneuten KI-Kosten | 2026-11-21 |
+| Eigener Dateiname je Scan im bestehenden Entwurfs-Speicher der Arbeitsfläche (PROJ-4) | Gleiches Verhalten wie die übrigen Felder beim Scan-Wechsel | 2026-11-21 |
+| Ergebnis- und Rückgängig-Meldung über sonner-Toast (bereits installiert) | Kein neues Paket; nicht blockierend | 2026-11-21 |
+| Tastenkürzel zentral in der Arbeitsfläche, gesperrt während eines laufenden Ablegens | Funktioniert aus allen Feldern; kein doppeltes Ablegen | 2026-11-21 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Überblick
+PROJ-5 ergänzt die rechte Spalte (Vorschläge aus PROJ-4) um den **Ablage-Bereich**, also Dateiname-Feld und die Knöpfe „Rechnung“ und „Scan“. Dazu kommt eine **Server-Schnittstelle**, die eine Datei sicher verschiebt, und eine zweite für **Rückgängig**.
+
+Wiederverwendet:
+- aus PROJ-1: Eingangs- und Ablage-Ordner aus den Einstellungen, NAS-Schnellprüfung, Ordner-Prüfung und Zugriffsschutz
+- aus PROJ-2: Liste aktualisieren und Auswahl-Regel „nächster Scan“
+- aus PROJ-3: Prüfung der Scan-Namen
+- aus PROJ-4: Felder, Dateiname-Regel, eigene Eingaben je Scan und Ergebnis-Speicher der KI
+- die bereits installierten Toast-Meldungen (sonner) für die Meldung mit „Rückgängig“
+
+### A) Komponenten-Struktur
+
+```
+Rechte Spalte „Vorschläge“ (PROJ-4)
++-- Kopf, Hinweise, Formular (unverändert)
++-- Ablage-Bereich  ← NEU (ersetzt die bisherige Dateiname-Vorschau)
+|   +-- Eingabefeld „Dateiname“ (vorbelegt aus den Feldern)
+|   |   +-- Hinweis darunter: was fehlt / was ungültig ist (z. B. „Unerlaubtes Zeichen: /“)
+|   |   +-- Knopf „Aus Feldern übernehmen“ (nur sichtbar, wenn selbst geändert)
+|   +-- Zielanzeige klein: „→ Rechnungen\2026\“ bzw. „→ Scanner\Abgelegt\“
+|   +-- [Rechnung] (Haupt-Knopf)   [Scan] (Neben-Knopf)
+|       - Ladezustand während des Ablegens, beide gesperrt
+|       - Tooltip: Kürzel bzw. Grund, warum deaktiviert
++-- Vermerk „bereits abgelegt – Original noch im Eingang“ (nur in diesem Sonderfall)
+
+Arbeitsfläche (PROJ-2)
++-- Tastenkürzel Strg + Enter / Strg + Umschalt + Enter (für die ganze Hauptansicht)
+
+Meldung unten rechts (Toast, ca. 8 s)
++-- „Abgelegt: Rechnungen\2026\…pdf“ (+ „Name war schon vergeben“ / „War bereits abgelegt“)
++-- [Rückgängig]
+```
+
+Verwendete vorhandene Bausteine: Input, Button, Tooltip, Label, sonner (Toast). Keine neuen Pakete.
+
+### B) Datenmodell
+
+```
+Nur im Browser (flüchtig, je Scan, wie die eigenen Eingaben aus PROJ-4):
+- selbst geänderter Dateiname (fehlt = Name folgt automatisch den Feldern)
+- „abgelegt, Original noch im Eingang“-Vermerk (Sonderfall Löschen fehlgeschlagen)
+
+Ablege-Auftrag (Browser → Server):
+- Scan (Dateiname im Eingang – nur der Name, kein Pfad)
+- Ziel: „Rechnung“ oder „Scan“
+- neuer Dateiname (nur der Name, kein Pfad)
+- Jahr (nur bei „Rechnung“, aus dem Datumsfeld)
+
+Ergebnis (Server → Browser):
+- Status: abgelegt | war bereits abgelegt (nur Eingang bereinigt) | abgelegt, Original nicht gelöscht | Fehlergrund
+- tatsächlicher Ablageort zur Anzeige (relativ, z. B. „Rechnungen\2026\…_2.pdf“)
+- Name wurde wegen Konflikt geändert: ja/nein
+- Rückgängig-Kennung (zufällig, nur kurz gültig)
+
+Rückgängig-Merkzettel (nur im Server-Arbeitsspeicher, ca. 10 Minuten):
+- Kennung → wo die Datei jetzt liegt, ursprünglicher Name, ursprüngliche Zeitstempel,
+  gemerkte KI-Vorschläge des Scans
+```
+
+Es gibt keine Datenbank und keine neue Datei auf der Festplatte. Die Metadaten werden erst mit PROJ-8 gespeichert.
+
+**Gemeinsame Prüfregel für Dateinamen**, gilt im Browser und auf dem Server gleich:
+- nicht leer, höchstens 100 Zeichen, `.pdf` wird ergänzt
+- keine `\ / : * ? " < > |` und keine Steuerzeichen
+- nicht nur Punkte oder Leerzeichen, kein Punkt bzw. Leerzeichen am Ende
+- keine reservierten Windows-Namen (`CON`, `NUL`, `COM1` …)
+
+### C) Server-Schnittstellen (in Worten)
+
+| Schnittstelle | Zweck |
+|---------------|-------|
+| **Scan ablegen** | Erhält Scan-Name, Ziel („Rechnung“/„Scan“), neuen Dateinamen und ggf. Jahr. Der **Zielordner wird ausschließlich auf dem Server gebildet**: `<Ablage>\Rechnungen\<Jahr>\` bzw. `<Eingang>\Abgelegt\` aus den gespeicherten Einstellungen. Der Browser kann keinen Pfad vorgeben. |
+| **Rückgängig** | Erhält nur die Rückgängig-Kennung. Verschiebt die Datei an den ursprünglichen Platz im Eingang zurück, mit ursprünglichem Namen und Zeitstempel, und stellt die gemerkten KI-Vorschläge wieder her. |
+
+Beide Schnittstellen sind nur lokal erreichbar, mit demselben Schutz wie bisher.
+
+### D) Abläufe
+
+**Sicheres Verschieben** („Rechnung“, NAS → OneDrive, verschiedene Laufwerke):
+1. Prüfen: Eingang erreichbar, Scan vorhanden, Ablage-Ordner erreichbar und beschreibbar. Fehlende Ordner (`Rechnungen`, Jahresordner, `Abgelegt`) werden angelegt.
+2. Freien Namen finden:
+   - Ist der Name frei, wird er verwendet.
+   - Liegt im Ziel schon eine Datei mit diesem Namen oder einer Nummern-Variante **mit identischem Inhalt**, wird nichts kopiert, sondern nur das Original gelöscht („war bereits abgelegt“).
+   - Sonst kommt die nächste freie Nummer `_2`, `_3` …, bei Garantiescheinen vor `_Garantie`.
+3. Unter einem **unsichtbaren Zwischennamen** in den Zielordner kopieren. So taucht eine halbe Datei nie unter dem echten Namen in OneDrive auf.
+4. Kopie prüfen: gleiche Größe und gleiche Prüfsumme (SHA-256) wie das Original.
+5. Zwischenname → endgültiger Name. Vorher wird noch einmal geprüft, ob der Name frei ist. Es wird nie überschrieben.
+6. Original im Eingang löschen. Klappt das nicht, gilt der Status „abgelegt, Original nicht gelöscht“, und die Kopie bleibt.
+7. Bei einem Fehler in Schritt 3–5 wird die Zwischendatei entfernt, und das Original bleibt unangetastet.
+
+**„Scan“ (gleiches Laufwerk, NAS → NAS):** Hier wird direkt umbenannt bzw. verschoben, das ist ein einziger Schritt ohne Kopie. Die Regeln für freie Namen und identische Inhalte gelten genauso.
+
+**Im Browser nach dem Ablegen:**
+- Liste sofort aktualisieren, damit der nächste Scan ausgewählt wird (PROJ-2), und die Meldung mit „Rückgängig“ zeigen.
+- Die KI-Ergebnisse des abgelegten Scans räumt der Server beim Auflisten ohnehin auf (PROJ-4). Für Rückgängig hat er sie vorher in den Merkzettel gelegt.
+
+**Rückgängig:**
+- Die Datei kommt zurück in den Eingang, mit ursprünglichem Namen und ursprünglicher Änderungszeit.
+- Ist der Name im Eingang inzwischen belegt, wird eine Nummer angehängt.
+- Weil Name, Größe und Zeit wieder stimmen, erkennt der Browser den Scan wieder („Fingerabdruck“ aus PROJ-4). Deine Eingaben und die KI-Vorschläge sind sofort wieder da, ohne erneute Kosten.
+- Ist die Datei am Ablageort nicht mehr vorhanden oder die Kennung abgelaufen, erscheint „Rückgängig nicht möglich“.
+
+**Dateiname-Feld:**
+- Es zeigt den automatisch gebildeten Namen, solange du es nicht selbst änderst.
+- Hast du es geändert, wird dein Wert je Scan gemerkt. „Aus Feldern übernehmen“ löscht nur diesen gemerkten Wert.
+
+**Knöpfe und Tastenkürzel:**
+- „Rechnung“ ist aktiv, wenn der Name gültig ist und das Datumsfeld ein gültiges Datum hat.
+- „Scan“ ist immer aktiv, bei ungültigem Namen wird der Originalname verwendet.
+- Die Kürzel wirken in der ganzen Hauptansicht, auch aus Eingabefeldern heraus. Läuft gerade ein Ablegen, werden sie ignoriert.
+
+**Fehler** (die Meldungen stammen aus der Spec):
+
+| Situation | Erkannt durch | Ergebnis |
+|-----------|---------------|----------|
+| Ablage nicht erreichbar / gelöscht | Ordner-Prüfung aus PROJ-1 | nichts verändert, Eingaben bleiben |
+| NAS nicht erreichbar | Schnellprüfung aus PROJ-1 | nichts verändert |
+| Keine Rechte / kein Platz | Fehler beim Anlegen oder Kopieren | Zwischendatei entfernt, Original bleibt |
+| Original gesperrt | Fehler beim Löschen | Kopie bleibt, Vermerk „bereits abgelegt“, erneuter Klick bereinigt nur den Eingang |
+| Scan verschwunden | Scan nicht vorhanden | Liste aktualisieren |
+| Ungültiger Name / Jahr / Ziel | Prüfregel auf dem Server | abgelehnt, nichts verändert |
+
+### E) Technische Entscheidungen (Begründung)
+
+- **Kopieren → prüfen → Original löschen statt einfachem „Verschieben“:** NAS und OneDrive sind verschiedene Laufwerke, dort ist Verschieben intern ohnehin Kopieren und Löschen, aber ohne Kontrolle. Mit Prüfsumme ist sicher, dass die Kopie vollständig ist, bevor das Original verschwindet.
+- **Unsichtbarer Zwischenname im Zielordner:** OneDrive würde sonst eine halb kopierte Datei unter dem echten Namen hochladen. Das Umbenennen am Ende geht innerhalb desselben Ordners in einem Schritt.
+- **Zielordner nur auf dem Server bestimmt, Browser schickt nur Namen:** Ein manipulierter Auftrag kann keine Datei außerhalb von `Rechnungen\<Jahr>` bzw. `Abgelegt` schreiben, und es gilt dieselbe Namensprüfung wie bei Vorschau und Analyse.
+- **Identischer Inhalt über Prüfsumme statt nur über den Namen:** Nur so lässt sich „derselbe Scan doppelt“ von „zwei verschiedene Rechnungen mit gleichem Namen“ unterscheiden.
+- **Rückgängig über eine kurzlebige Kennung im Server-Speicher:** Der Browser muss keine Pfade kennen oder zurückschicken. Nach etwa 10 Minuten oder einem Neustart verfällt sie. Für die 8-Sekunden-Meldung reicht das, und es ist sicher.
+- **KI-Vorschläge im Rückgängig-Merkzettel:** Beim Auflisten werden die Ergebnisse abgelegter Scans entfernt (PROJ-4). Ohne Merkzettel würde ein Rückgängig eine neue, kostenpflichtige Analyse auslösen.
+- **Ursprüngliche Zeitstempel beim Rückgängig wiederherstellen:** Damit ist der „Fingerabdruck“ identisch. Eigene Eingaben und Vorschläge erscheinen wieder, und das Scan-Datum in der Liste stimmt.
+- **Gemeinsame Prüfregel für Dateinamen in Browser und Server:** Der Browser kann Knöpfe sofort korrekt aktivieren oder deaktivieren, und der Server verlässt sich trotzdem nicht darauf.
+- **Toast-Meldung (sonner) für Ergebnis und Rückgängig:** Das Paket ist schon im Projekt und im Layout eingebunden, und die Meldung stört den Arbeitsfluss nicht.
+- **Tastenkürzel auf der Arbeitsfläche statt am Knopf:** So funktionieren sie aus jedem Feld heraus, und doppelte Auslöser während eines laufenden Ablegens werden zentral verhindert.
+- **Keine Datenbank, kein dauerhafter Speicher:** Metadaten speichert erst PROJ-8. Bis dahin steckt die Information im Dateinamen und Ablageort.
+
+### F) Abhängigkeiten (zu installieren)
+Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhandenen Pakete (zod, sonner, shadcn/ui).
 
 ## QA Test Results
 _To be added by /qa_
