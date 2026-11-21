@@ -1,6 +1,6 @@
 # PROJ-4: KI-Analyse
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -103,6 +103,7 @@
 - **Lokal gemerkte Ergebnisse** enthalten nur die Vorschläge, keine Kopie des Scans.
 
 ## Open Questions
+- [ ] Reicht Haiku 5.5 für ≥ 80 % brauchbare Vorschläge? Sonst Modell wechseln (eine Stelle im Code) – in QA mit echten Rechnungen messen, inkl. tatsächlicher Kosten pro Scan.
 - [ ] Welche Trefferquote erreichen die Vorschläge bei echten Scans? Ziel laut PRD: ≥ 80 % ohne oder mit kleiner Korrektur – in QA mit einigen echten Rechnungen prüfen.
 - [ ] Details zum Knopf „Scan" (Name des Unterordners im Scanner-Ordner, Umbenennen ja/nein) – in PROJ-5 klären.
 
@@ -125,12 +126,182 @@
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Modell `claude-haiku-5-5`, an einer Stelle konfiguriert | Vom Nutzer gewählt (Kosten ~0,1 Rp./Scan); Wechsel auf Sonnet/Opus 5.5 ohne Umbau, falls Trefferquote < 80 % | 2026-11-21 |
+| Structured Outputs (festes JSON-Schema) + eigene Zod-Prüfung der Antwort | Verlässliche Felder, kein Parsen von Freitext; doppelte Absicherung | 2026-11-21 |
+| Effort niedrig, adaptives Denken (Standard) | Einfache Extraktion; spart Zeit und Kosten | 2026-11-21 |
+| PDF als Dokument-Block (base64) direkt an Claude | Claude liest Text und Bild, auch ohne Textebene; kein eigenes OCR (PROJ-6) | 2026-11-21 |
+| pdf-lib zum Zuschneiden auf 5 Seiten und als Vorab-Prüfung | Reines JavaScript, keine Systemabhängigkeit; erkennt beschädigte/geschützte PDFs vor Kosten | 2026-11-21 |
+| Ergebnis-Speicher `data/analyses.json`, atomar geschrieben, Schlüssel = Name + Grösse + Änderungszeit | Keine DB im MVP; einmal bezahlen auch über Neustart; ersetzte Datei wird erkannt ohne vollständiges Lesen | 2026-11-21 |
+| Aufräumen verwaister Ergebnisse beim Auflisten des Eingangs | Kein separater Hintergrundprozess nötig | 2026-11-21 |
+| Analyse-Jobs serverseitig, unabhängig von der Anfrage, pro Fingerabdruck zusammengelegt | Wegklicken bricht nicht ab; keine Doppelkosten | 2026-11-21 |
+| Neue Schnittstelle „Scan analysieren“ (nur Dateiname + Flag „neu“), Antwort wartet auf Ergebnis (max. 60 s) | Einfacher als Polling; gleiche Namensprüfung wie PROJ-3 | 2026-11-21 |
+| Zeitlimit 60 s gesamt, max. 1 Wiederholung bei Überlastung | Robust gegen kurze Überlast, Wartezeit begrenzt | 2026-11-21 |
+| Kein Refusal-Fallback | Für Haiku 5.5 nicht verfügbar; Ablehnung als „Antwort unbrauchbar“ | 2026-11-21 |
+| Dateiname-Regel als gemeinsame, unit-getestete Funktion (Browser-Vorschau + PROJ-5-Server) | Vorschau und Ablage müssen identisch sein | 2026-11-21 |
+| Eigene Eingaben + „berührt“-Markierung nur im Browser je Scan | Laut Spec nur für die Sitzung; KI überschreibt nie Nutzereingaben | 2026-11-21 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Überblick
+Die rechte Spalte der Arbeitsfläche (bisher Platzhalter „Vorschläge“) wird zum **Vorschlags-Formular**. Es hängt wie die Vorschau (PROJ-3) an der zentralen **Auswahl** aus PROJ-2.
+
+Drei Teile:
+1. **Server – Analyse-Dienst:** liest den Scan aus dem Eingang, schneidet ihn auf höchstens 5 Seiten zu, schickt ihn an Claude und erhält die Felder in einem **fest vorgegebenen Format** zurück. Ergebnisse werden **lokal gemerkt**, damit jeder Scan nur einmal bezahlt wird.
+2. **Server – Ergebnis-Speicher:** eine kleine lokale Datei neben den Einstellungen mit den KI-Vorschlägen je Scan. Er wird aufgeräumt, wenn Scans aus dem Eingang verschwinden.
+3. **Browser – Formular:** Eingabefelder, Ladezustand, Meldungen, „Neu analysieren“ und die live gebildete Dateiname-Vorschau. Eigene Eingaben werden je Scan gemerkt, solange ScanTool offen ist.
+
+Wiederverwendet:
+- aus PROJ-1: API-Schlüssel aus `.env.local`, Fehlerzuordnung (Schlüssel ungültig, kein Guthaben, nicht erreichbar) und Zugriffsschutz für lokale Anfragen
+- aus PROJ-2: Auswahl und Listen-Aktualisierung
+- aus PROJ-3: Prüfung „nur Dateien aus dem Eingang“ und NAS-Erreichbarkeit
+
+### A) Komponenten-Struktur
+
+```
+Arbeitsfläche (aus PROJ-2)
++-- Linke Spalte: Eingangsliste (unverändert)
++-- Mittlere Spalte: PDF-Vorschau (PROJ-3, unverändert)
++-- Rechte Spalte: Vorschläge  ← NEU
+    +-- Kopf: „Vorschläge“ + Status („KI analysiert …“ / „Von KI vorgeschlagen“) + [Neu analysieren]
+    +-- Hinweiszeile (nur bei Bedarf):
+    |   „Nur die ersten 5 Seiten analysiert“ · „Kein Rechnungsdokument erkannt“ ·
+    |   Fehlermeldung je Fall + [Erneut versuchen] · „API-Schlüssel fehlt“ (Link zu Einstellungen)
+    +-- Formular (immer bedienbar, auch während der Analyse und bei Fehlern)
+    |   +-- Dokumenttyp: Auswahl Rechnung / Garantieschein / (leer)
+    |   +-- Datum (TT.MM.JJJJ)
+    |   +-- Lieferant
+    |   +-- Beschreibung
+    |   +-- Betrag + Währung (zwei Felder nebeneinander)
+    |   +-- Rechnungsnummer
+    |   +-- Garantiedauer (Monate)
+    |   +-- Artikel (mehrzeiliges Feld, eine Position pro Zeile)
+    +-- Dateiname-Vorschau: `261121_Digitec_Monitor-Dell-U2724D.pdf` oder „Datum fehlt“
+    +-- Platz für die Knöpfe „Scan“ / „Rechnung“ (kommen mit PROJ-5)
+    +-- Leerer Zustand: „Kein Scan ausgewählt“
+```
+
+Verwendete vorhandene shadcn/ui-Bausteine: Card, Input, Textarea, Select, Label, Button, Alert, Badge, Skeleton, Tooltip. Keine neuen Bausteine nötig. Die Validierung der Felder läuft wie in PROJ-1 mit react-hook-form und Zod.
+
+### B) Datenmodell
+
+```
+KI-Vorschlag je Scan (vom Server, lokal gemerkt):
+- Dokumenttyp: Rechnung | Garantieschein | leer
+- Rechnungsdokument erkannt: ja / nein
+- Datum (Kalenderdatum) | leer
+- Lieferant (Kurzname) | leer
+- Beschreibung (2–5 Wörter) | leer
+- Betrag (Zahl, 2 Nachkommastellen, Minus bei Gutschrift) | leer
+- Währung (3-Buchstaben-Code, z. B. CHF/EUR/USD) | leer
+- Rechnungsnummer | leer
+- Artikel: Liste (max. 10 Texte)
+- Garantiedauer in Monaten (ganze Zahl) | leer
+- Seiten analysiert / Seiten gesamt (für den 5-Seiten-Hinweis)
+- Zeitpunkt der Analyse, verwendetes Modell
+
+Gemerkt in: data/analyses.json (gleicher Ordner wie die Einstellungen, nicht in Git).
+Schlüssel je Eintrag = „Fingerabdruck“ des Scans: Dateiname + Grösse + Änderungszeit.
+→ Andere Grösse oder Änderungszeit = andere Datei = neue Analyse.
+→ Einträge, deren Scan nicht mehr im Eingang liegt, werden beim Aktualisieren der Liste entfernt.
+Keine Kopie des Scans, nur die Vorschläge.
+
+Nur im Browser (flüchtig, solange ScanTool offen ist), je Scan:
+- aktuelle Feldwerte
+- welche Felder der Nutzer selbst geändert hat („berührt“) → werden nie von der KI überschrieben
+```
+
+**Dateiname-Regel** (eine gemeinsame, separat getestete Regel, die PROJ-5 beim Ablegen auf dem Server genauso verwendet):
+- `JJMMTT_Lieferant_Beschreibung[_Garantie].pdf`
+- Leerzeichen werden zu `-`, Umlaute bleiben.
+- `\ / : * ? " < > |` und `_` werden entfernt bzw. zu `-`. Doppelte `-` werden zusammengezogen, `-` an Anfang und Ende entfernt.
+- höchstens 100 Zeichen, dafür wird die Beschreibung gekürzt
+- Statt eines Namens erscheint der fehlende Teil: „Datum fehlt“, „Datum ungültig“, „Lieferant fehlt“, „Beschreibung fehlt“.
+
+### C) Server-Schnittstelle (in Worten)
+
+| Schnittstelle | Zweck |
+|---------------|-------|
+| **Scan analysieren** | Erhält nur einen Dateinamen und optional „neu analysieren“. Prüft den Namen mit denselben Regeln wie die Vorschau. Liegt ein Ergebnis zum aktuellen Fingerabdruck vor, kommt es **sofort** zurück, ohne Kosten. Sonst startet die Analyse oder hängt sich an eine bereits laufende für denselben Scan an. Die Antwort folgt, sobald das Ergebnis da ist, spätestens nach 60 s. |
+
+**Antworten:** Vorschlag + Hinweise, oder ein Fehlergrund. Die Fehlergründe sind:
+- kein API-Schlüssel
+- Schlüssel ungültig
+- kein Guthaben
+- Claude nicht erreichbar
+- Zeitüberschreitung
+- Scan nicht lesbar (beschädigt oder passwortgeschützt)
+- Scan zu groß (> 30 MB)
+- Scan nicht mehr da
+- Eingang nicht erreichbar
+- KI-Antwort unbrauchbar bzw. abgelehnt
+
+Gleicher Zugriffsschutz wie bisher: nur lokal, keine fremden Webseiten.
+
+**Aufräumen:** Beim Auflisten des Eingangs (PROJ-2) entfernt der Server die gemerkten Ergebnisse, deren Scan nicht mehr da ist.
+
+### D) Abläufe
+
+**Scan auswählen:**
+1. Das Formular zeigt sofort die gemerkten eigenen Eingaben dieses Scans, falls vorhanden, sonst leere Felder mit „KI analysiert …“.
+2. Der Browser fragt „Scan analysieren“ an. Ist das Ergebnis gemerkt, ist es sofort da. Sonst gilt:
+   - Der Server liest die Datei vom NAS.
+   - Ist sie größer als 30 MB, wird abgebrochen: „zu groß“.
+   - Ein PDF-Werkzeug öffnet die Datei. Ist sie beschädigt oder passwortgeschützt, wird abgebrochen: „nicht lesbar“.
+   - Bei mehr als 5 Seiten wird eine verkleinerte Kopie mit den ersten 5 Seiten erzeugt, nur im Arbeitsspeicher.
+   - Das PDF geht zusammen mit festen Anweisungen auf Deutsch an Claude, mit fest vorgegebenem Antwortformat.
+   - Die Antwort wird geprüft und vereinheitlicht, das Ergebnis gemerkt.
+3. **Zusammenführen im Browser:** KI-Werte füllen nur Felder, die der Nutzer **nicht berührt** hat.
+
+**Schneller Wechsel:** Wechselt die Auswahl, verwirft der Browser die Antwort für den alten Scan. Der Server rechnet aber weiter und merkt das Ergebnis, denn eine Analyse läuft unabhängig von der Anfrage, die sie gestartet hat. Zwei Anfragen für denselben Scan lösen nur **eine** Analyse aus.
+
+**„Neu analysieren“:** Der Server ignoriert das gemerkte Ergebnis und analysiert neu. Im Browser werden wieder nur unberührte Felder gefüllt. Während eine Analyse läuft, ist der Knopf deaktiviert.
+
+**Anweisungen an Claude** (Inhalt, nicht Wortlaut):
+- Nur sicher Erkanntes eintragen, sonst leer lassen und nichts raten.
+- Rechnungsdatum vor Liefer- oder Bestelldatum, beim Garantieschein das Kaufdatum.
+- Lieferant als Kurzname ohne Rechtsform und Adresse.
+- Beschreibung mit 2–5 Wörtern zum Hauptprodukt, keine Sonderzeichen.
+- Betrag ist der Gesamtbetrag inkl. MWST, Gutschriften negativ.
+- Artikel sind nur Hauptpositionen, keine Versandkosten und Gebühren.
+- Ist es kein Rechnungsdokument, wird „Rechnungsdokument erkannt: nein“ gesetzt.
+
+**Fehler:**
+
+| Situation | Erkannt durch | Anzeige |
+|-----------|---------------|---------|
+| Kein API-Schlüssel | Einstellungen (PROJ-1) | Hinweis + Link zu Einstellungen, **keine** Anfrage an Claude |
+| Schlüssel ungültig / kein Guthaben / nicht erreichbar | Fehlerzuordnung aus PROJ-1 | Meldung je Fall + „Erneut versuchen“ |
+| Zeitüberschreitung (60 s) | Server-Zeitlimit | „Analyse dauert zu lange“ + „Erneut versuchen“ |
+| Beschädigt / passwortgeschützt | PDF-Werkzeug | „Scan kann nicht analysiert werden“ |
+| > 30 MB | Dateigröße | „Scan zu groß für die KI-Analyse – bitte Felder selbst ausfüllen“ |
+| Antwort unbrauchbar / von Claude abgelehnt | Formatprüfung / Antwortgrund | „KI-Antwort unbrauchbar“ + „Erneut versuchen“ |
+| Scan verschwunden | Server: nicht vorhanden | Liste aktualisieren (wie PROJ-3), Auswahl springt weiter |
+| NAS nicht erreichbar | Schnellprüfung aus PROJ-1 | „Eingangsordner nicht erreichbar“ + „Erneut versuchen“ |
+
+In allen Fällen bleibt das Formular bedienbar. Fehler werden **nicht** gemerkt, der nächste Versuch fragt wieder an.
+
+### E) Technische Entscheidungen (Begründung)
+
+- **Modell Claude Haiku 5.5 (vom Nutzer gewählt):** Es ist das günstigste aktuelle Modell, etwa 0,1 Rappen pro üblichem Scan, und schnell, was zum 10-s-Ziel passt. Das Modell ist an **einer Stelle** festgelegt. Reicht die Trefferquote in der QA nicht (Ziel ≥ 80 %), lässt sich ohne Umbau auf Sonnet 5.5 oder Opus 5.5 wechseln.
+- **Fest vorgegebenes Antwortformat („Structured Outputs“) statt freiem Text:** Claude muss genau die Felder in der vorgegebenen Form liefern. Es gibt kein Raten beim Auslesen und keine kaputten Antworten durch Formatfehler. Zusätzlich prüft der Server jede Antwort selbst.
+- **Geringer „Denkaufwand“ (Effort niedrig):** Felder aus einer Rechnung zu lesen ist eine einfache Aufgabe. Wenig Nachdenken spart Zeit und Kosten, ohne die Qualität spürbar zu senken.
+- **PDF direkt an Claude, nicht vorher selbst in Text umwandeln:** Claude liest Text und Bild der Seiten, auch bei Scans ohne Textebene. Eine eigene Texterkennung ist erst Thema von PROJ-6.
+- **Auf 5 Seiten zuschneiden mit „pdf-lib“:** Das kostenlose PDF-Werkzeug läuft auf dem Server ohne Zusatzprogramme. Es kopiert die ersten 5 Seiten in eine neue Datei im Arbeitsspeicher, das Original bleibt unverändert. Nebenbei erkennt es beschädigte und passwortgeschützte Dateien, bevor Geld ausgegeben wird.
+- **Ergebnisse in einer lokalen Datei (`data/analyses.json`) statt in der Datenbank:** Im MVP gibt es keine Datenbank (PRD). Die Datei liegt neben den Einstellungen, ist nicht in Git und wird atomar geschrieben wie die Einstellungen in PROJ-1. So bezahlt man jeden Scan einmal, auch über einen Neustart hinweg.
+- **Fingerabdruck aus Name + Größe + Änderungszeit statt Inhalts-Prüfsumme:** Ein ersetzter Scan wird zuverlässig erkannt, ohne jede Datei ganz vom NAS lesen zu müssen, nur um die Liste zu prüfen.
+- **Analyse läuft serverseitig weiter, auch wenn der Browser wegklickt, und wird zusammengelegt:** Das erfüllt „laufende Analysen werden gemerkt, nicht abgebrochen“. Doppelte Kosten durch schnelles Hin- und Herklicken sind ausgeschlossen.
+- **Zeitlimit 60 s mit höchstens einem automatischen Wiederholversuch bei Überlastung:** Kurzzeitige Überlastung bei Anthropic wird abgefangen, und die Gesamtwartezeit bleibt trotzdem begrenzt.
+- **Kein Fallback-Modell bei Ablehnung:** Für Haiku 5.5 gibt es keinen serverseitigen Fallback. Eine (bei Rechnungen sehr unwahrscheinliche) Ablehnung wird als „KI-Antwort unbrauchbar“ gemeldet, und manuelles Ausfüllen bleibt möglich.
+- **Eigene Eingaben nur im Browser-Arbeitsspeicher:** So steht es in der Spec, nach einem Neustart erscheinen wieder die KI-Vorschläge. Die dauerhafte Speicherung übernimmt PROJ-5 beim Ablegen.
+- **Dateiname-Regel als gemeinsame, getestete Logik:** Browser-Vorschau und Ablage (PROJ-5) müssen exakt denselben Namen bilden, sonst würde die Vorschau lügen.
+- **API-Schlüssel bleibt auf dem Server:** Der Browser spricht nur mit ScanTool, nie direkt mit Anthropic.
+
+### F) Abhängigkeiten (zu installieren)
+- **pdf-lib**: PDF öffnen, Seitenzahl lesen, die ersten 5 Seiten in eine neue Datei kopieren, beschädigte und geschützte PDFs erkennen.
+- Vorhanden und wiederverwendet: `@anthropic-ai/sdk` (Claude API), `zod` (Antwort- und Formularprüfung), `react-hook-form`.
 
 ## QA Test Results
 _To be added by /qa_
