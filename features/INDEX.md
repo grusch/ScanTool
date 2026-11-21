@@ -13,9 +13,23 @@
 
 ## Features
 
-| ID | Feature | Status | Spec | Created |
-|----|---------|--------|------|---------|
+| ID | Feature | Beschreibung | Prio | Abhängig von | Status | Spec | Created |
+|----|---------|--------------|------|--------------|--------|------|---------|
+| PROJ-1 | Einstellungen & Setup | Ordnerpfade (Eingang, Ablage) und Claude-API-Schlüssel konfigurieren und prüfen | P0 | None | Roadmap | – | 2026-11-21 |
+| PROJ-2 | Eingangsliste | PDFs im Eingangsordner auflisten, aktualisieren, Scan auswählen | P0 | PROJ-1 | Roadmap | – | 2026-11-21 |
+| PROJ-3 | PDF-Vorschau | Ausgewählten Scan mehrseitig anzeigen (blättern, zoomen) | P0 | PROJ-2 | Roadmap | – | 2026-11-21 |
+| PROJ-4 | KI-Analyse | PDF an Claude senden, Typ/Datum/Lieferant/Beschreibung/Betrag/Artikel/Garantiedauer vorschlagen | P0 | PROJ-1, PROJ-2 | Roadmap | – | 2026-11-21 |
+| PROJ-5 | Prüfen & Ablegen | Vorschläge bearbeiten, Dateiname `JJMMTT_Lieferant_Beschreibung.pdf` bilden, Zielordner anlegen, Datei verschieben, Namenskonflikte behandeln | P0 | PROJ-2, PROJ-4 | Roadmap | – | 2026-11-21 |
+| PROJ-6 | OCR-Modus & Umschalter | Texterkennung plus Regeln als Alternative zur KI, umschaltbar in den Einstellungen | P1 | PROJ-4 | Roadmap | – | 2026-11-21 |
+| PROJ-7 | Supabase Infrastructure Setup | Supabase-Projekt, Umgebungsvariablen, Datenbankschema | P1 | None | Roadmap | – | 2026-11-21 |
+| PROJ-8 | Metadaten speichern | Beim Ablegen Metadaten und Dateipfad in die Datenbank schreiben | P1 | PROJ-5, PROJ-7 | Roadmap | – | 2026-11-21 |
+| PROJ-9 | Suche & Filter | Abgelegte Dokumente nach Lieferant, Zeitraum, Betrag, Typ durchsuchen | P1 | PROJ-8 | Roadmap | – | 2026-11-21 |
+| PROJ-10 | Garantie-Übersicht | Bald ablaufende Garantien anzeigen | P1 | PROJ-8 | Roadmap | – | 2026-11-21 |
+| PROJ-11 | Automatikmodus | Bei hoher KI-Sicherheit ohne Bestätigung ablegen | P2 | PROJ-5 | Roadmap | – | 2026-11-21 |
+| PROJ-12 | Weitere Dokumenttypen | Zusätzliche Typen mit eigenem Ablageordner | P2 | PROJ-4, PROJ-5 | Roadmap | – | 2026-11-21 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-1
+**Empfohlene Reihenfolge (MVP):** PROJ-1 → PROJ-2 → PROJ-3 → PROJ-4 → PROJ-5
+
+## Next Available ID: PROJ-13
