@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { FileSearch, Sparkles } from "lucide-react"
+import { PdfPreview } from "@/components/preview/pdf-preview"
 import { Card, CardContent } from "@/components/ui/card"
 import { InboxList } from "@/components/inbox/inbox-list"
 import { useInbox } from "@/hooks/use-inbox"
@@ -61,11 +62,7 @@ export function InboxWorkspace({ initialInbox }: InboxWorkspaceProps) {
           <InboxList state={state} selected={selected} onSelect={setSelected} onMove={onMove} />
         </CardContent>
       </Card>
-      <Placeholder
-        icon={FileSearch}
-        title="PDF-Vorschau"
-        text={selected ? `Ausgewählt: ${selected} – Vorschau folgt mit PROJ-3` : "Kein Scan ausgewählt"}
-      />
+      <PdfPreview selected={selected} onScanMissing={state.refresh} />
       <Placeholder icon={Sparkles} title="Vorschläge" text="KI-Vorschläge und Ablegen folgen mit PROJ-4/5" />
     </div>
   )

@@ -1,6 +1,6 @@
 # PROJ-3: PDF-Vorschau
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -243,6 +243,23 @@ Bereits angezeigte Seiten bleiben sichtbar, wenn das NAS danach wegfällt. Ein F
 
 ### F) Abhängigkeiten (zu installieren)
 - **react-pdf**: React-Baustein für PDF-Anzeige; bringt **pdfjs-dist** (PDF.js von Mozilla) mit. Damit werden Seiten gezeichnet, gedreht und Fehler erkannt.
+
+## Implementation Notes (Frontend)
+**Gebaut (2026-11-21):**
+- `src/components/preview/pdf-preview.tsx` – mittlere Spalte: leerer Zustand „Kein Scan ausgewählt", Ladeplatzhalter in Seitenform, Fehlerzustände je Grund (beschädigt → „In neuem Tab öffnen", nicht erreichbar/unbekannt → „Erneut versuchen", nicht mehr da → Liste sofort aktualisieren). Lädt den Betrachter per `next/dynamic` mit `ssr: false`.
+- `src/components/preview/pdf-viewer.tsx` – Betrachter mit react-pdf 11.1.0 (pdfjs-dist 6.5.438). Seiten untereinander, absolut positioniert nach vorab gelesenen Seitengrössen; gezeichnet werden nur Seiten im sichtbaren Bereich ± eine Bildschirmhöhe (Rest = Platzhalter in Seitengrösse). Worker lokal über `new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)`. Strg + Mausrad mit `passive: false` nur über der Vorschau. Leseposition bleibt bei Zoom/Drehen proportional erhalten. Text- und Annotations-Ebene sind aus (nur Anzeige, schneller).
+- `src/components/preview/preview-toolbar.tsx` – Bedienleiste (shadcn Button, Tooltip, Separator): ‹ „Seite X von Y" ›, − „NN %" +, Breite anpassen, Ganze Seite, 90° links, 90° rechts, 180°, In neuem Tab öffnen. Alle Knöpfe mit aria-label und Tooltip; bricht auf schmalen Bildschirmen um.
+- `src/hooks/use-scan-file.ts` – lädt den Scan als Blob (`cache: no-store`), bricht bei Auswahlwechsel ab; gleiche Auswahl lädt nicht neu.
+- `src/lib/preview-view.ts` (+ 12 Unit-Tests) – Zoom-Stufen, Einpassen (Breite/ganze Seite, gedreht mit vertauschten Massen), Drehen, aktuelle Seite, zu zeichnende Seiten. 100 % = Originalgrösse (96/72 px pro Punkt).
+- `src/lib/preview-api.ts` – Adresse `/api/inbox/file?name=…`, Übersetzung der Server-Antworten (404/`not_found`, 503/`unreachable`) und Meldungstexte.
+- `inbox-workspace.tsx` – Platzhalter der Mitte durch `PdfPreview` ersetzt; `onScanMissing` = Listen-Aktualisierung aus PROJ-2.
+
+**Abweichungen / Hinweise:**
+- react-pdf 11 lädt standardmässig über React-Suspense; Ladefehler landen dann nicht im Callback, sondern lassen die Seite abstürzen. Deshalb `suspense={false}` an `Document` und `Page`.
+- Scan wird als Blob übergeben (nicht als ArrayBuffer), weil PDF.js Puffer an den Worker überträgt und sie im React-StrictMode beim zweiten Laden fehlen würden.
+- Passwortschutz: eigener `onPassword`-Handler → Meldung (verhindert den Browser-Prompt von react-pdf).
+- Geprüft im Dev-Server mit simulierter Server-Antwort und echtem 2-seitigem Scan vom NAS: Anzeige, Seitenzähler, Zoom (80 % → 100 % per Strg + Mausrad), Ganze Seite, Drehen, 375 px ohne seitliches Scrollen, Fehlerzustände (beschädigt, nicht erreichbar, nicht mehr da → Liste aktualisiert).
+- **Noch offen (Backend):** Schnittstelle `GET /api/inbox/file?name=…` existiert noch nicht → bis `/backend` zeigt die Vorschau „Der Scan ist nicht mehr im Eingang."
 
 ## QA Test Results
 _To be added by /qa_
