@@ -6,6 +6,7 @@ export type ScanLoadError =
   | "unreachable" // inbox folder / NAS not reachable
   | "damaged" // not a valid PDF (detected by the PDF library or the server)
   | "password" // password-protected PDF
+  | "no_access" // file exists but Windows denies reading it
   | "unknown" // server did not answer / unexpected response
 
 /** Address of a scan – used for loading and for "Open in new tab" */
@@ -34,6 +35,7 @@ export async function fetchScan(name: string, signal?: AbortSignal): Promise<Sca
   }
   if (code === "not_found" || res.status === 404) return { ok: false, error: "not_found" }
   if (code === "unreachable" || res.status === 503) return { ok: false, error: "unreachable" }
+  if (code === "no_access") return { ok: false, error: "no_access" }
   if (code === "invalid_name") return { ok: false, error: "not_found" }
   return { ok: false, error: "unknown" }
 }
@@ -43,5 +45,6 @@ export const SCAN_ERROR_MESSAGES: Record<ScanLoadError, string> = {
   unreachable: "Eingangsordner nicht erreichbar – ist die NAS eingeschaltet?",
   damaged: "Dieser Scan lässt sich nicht anzeigen – die Datei ist beschädigt oder kein gültiges PDF.",
   password: "Dieser Scan ist passwortgeschützt und kann nicht angezeigt werden.",
+  no_access: "Kein Zugriff auf diesen Scan – bitte die Berechtigungen der Datei prüfen.",
   unknown: "Der Scan konnte nicht geladen werden – antwortet der lokale Server?",
 }

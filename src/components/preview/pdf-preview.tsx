@@ -36,6 +36,7 @@ const ERROR_ICONS: Record<ScanLoadError, typeof FileWarning> = {
   unreachable: WifiOff,
   damaged: FileWarning,
   password: Lock,
+  no_access: Lock,
   unknown: WifiOff,
 }
 
@@ -53,7 +54,7 @@ function ErrorState({ error, url, onRetry }: { error: ScanLoadError; url: string
           </a>
         </Button>
       )}
-      {(error === "unreachable" || error === "unknown") && (
+      {(error === "unreachable" || error === "unknown" || error === "no_access") && (
         <Button variant="outline" size="sm" onClick={onRetry}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Erneut versuchen

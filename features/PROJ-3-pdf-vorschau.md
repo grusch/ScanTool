@@ -93,7 +93,7 @@
 - **Barrierefreiheit:** alle Bedienknöpfe per Tastatur erreichbar und mit verständlicher Beschriftung (Tooltip/aria-label).
 
 ## Open Questions
-- [ ] Reicht die 2-Sekunden-Grenze bei grossen Scans vom NAS in der Praxis? Mit echten mehrseitigen Scans messen (siehe auch offene Frage zur Änderungszeit in PROJ-2).
+- [ ] Reicht die 2-Sekunden-Grenze bei grossen Scans vom NAS in der Praxis? Mit echten mehrseitigen Scans messen (siehe auch offene Frage zur Änderungszeit in PROJ-2). Erste Messung (Dev-Modus, 2,5 MB): 1,7–2,2 s.
 
 ## Decision Log
 
@@ -259,7 +259,20 @@ Bereits angezeigte Seiten bleiben sichtbar, wenn das NAS danach wegfällt. Ein F
 - Scan wird als Blob übergeben (nicht als ArrayBuffer), weil PDF.js Puffer an den Worker überträgt und sie im React-StrictMode beim zweiten Laden fehlen würden.
 - Passwortschutz: eigener `onPassword`-Handler → Meldung (verhindert den Browser-Prompt von react-pdf).
 - Geprüft im Dev-Server mit simulierter Server-Antwort und echtem 2-seitigem Scan vom NAS: Anzeige, Seitenzähler, Zoom (80 % → 100 % per Strg + Mausrad), Ganze Seite, Drehen, 375 px ohne seitliches Scrollen, Fehlerzustände (beschädigt, nicht erreichbar, nicht mehr da → Liste aktualisiert).
-- **Noch offen (Backend):** Schnittstelle `GET /api/inbox/file?name=…` existiert noch nicht → bis `/backend` zeigt die Vorschau „Der Scan ist nicht mehr im Eingang."
+- Ergänzt mit dem Backend: Fehlergrund „kein Zugriff" (Windows-Berechtigung) mit eigener Meldung und „Erneut versuchen".
+
+## Implementation Notes (Backend)
+**Gebaut (2026-11-21):**
+- `GET /api/inbox/file?name=<Dateiname>` (`src/app/api/inbox/file/route.ts`) – liefert genau einen Scan aus dem **gespeicherten** Eingangsordner, nur lesend.
+  - Antwort 200: `Content-Type: application/pdf`, `Content-Disposition: inline` (mit UTF-8-Dateiname), `Cache-Control: no-store`.
+  - Fehler als JSON `{ code, message }`: 400 `invalid_name`, 404 `not_found` (auch: nichts konfiguriert, Ordner statt Datei), 503 `unreachable` (SMB-Probe aus PROJ-1 ~2 s bzw. Lese-Timeout), 403 `no_access` bzw. `forbidden` (nicht lokal), 500 `unknown`.
+- `src/lib/server/scan-file.ts` – Prüfung des Namens mit Zod: keine Pfadtrenner `\` `/`, kein `:` (Laufwerk / Alternate Data Stream), keine Steuerzeichen, kein `..`, nicht versteckt/temporär (`.` / `~$`), Endung `.pdf`. Zusätzlich muss der aufgelöste Pfad direkt im Eingangsordner liegen. Lese-Obergrenzen: `stat` 10 s, Lesen 60 s.
+- Ganze Datei wird gelesen und ausgeliefert (laut Tech Design kein stückweises Laden im MVP).
+- Gleicher lokaler Schutz wie PROJ-1/2; „In neuem Tab öffnen" (Navigation ohne Origin, `Sec-Fetch-Site: same-origin`) ist erlaubt.
+
+**Tests:** `src/app/api/inbox/file/file.test.ts` – 23 Tests: Auslieferung unverändert, Sonderzeichen/Umlaute, Datei bleibt unverändert (Inhalt + Änderungszeit), ersetzte Datei zeigt neuen Inhalt, 404/400 (12 Varianten von Path Traversal & ungültigen Namen), Ablage-Ordner nicht erreichbar, nichts konfiguriert, NAS unerreichbar < 5 s, fremde Webseiten 403, neuer Tab erlaubt.
+
+**Live mit NAS (Dev-Modus):** echter Scan 2,5 MB → Server liefert in ~0,95 s; erste Seite gezeichnet 1,7–2,2 s nach der Anfrage. Liegt an der 2-s-Grenze – in QA mit Produktions-Build messen (siehe offene Frage). Path Traversal live 400, cross-site 403.
 
 ## QA Test Results
 _To be added by /qa_
