@@ -183,9 +183,10 @@ test.describe('PROJ-5 Ablegen', () => {
     await invoiceBtn(page).dblclick()
     await page.keyboard.press('Control+Enter')
     await expect(page.getByText(/Abgelegt: Rechnungen/)).toBeVisible()
-    await page.waitForTimeout(1000)
+    await page.keyboard.press('Control+Enter') // right after filing – must not hit the next scan
+    await page.waitForTimeout(1500)
     expect(await ls(invoiceDir())).toHaveLength(1)
-    expect(await ls(inbox)).toEqual(['b.pdf', 'c.pdf', 'Rechnungen'].filter((n) => n !== 'Rechnungen'))
+    expect(await ls(inbox)).toEqual(['b.pdf', 'c.pdf'])
   })
 })
 
@@ -199,6 +200,7 @@ test.describe('PROJ-5 Tastatur', () => {
     await field(page, 'Beschreibung').press('Control+Enter')
     await expect(page.getByText(/Abgelegt: Rechnungen\\2026\\/)).toBeVisible()
     await expect(selected(page)).toContainText('b.pdf')
+    await expect(scanBtn(page)).toBeEnabled() // short lock after filing (BUG-1)
     await page.keyboard.press('Control+Shift+Enter')
     await expect(page.getByText(/Abgelegt: Scanner\\Abgelegt\\/)).toBeVisible()
     expect(await ls(path.join(inbox, 'Abgelegt'))).toHaveLength(1)
@@ -234,6 +236,30 @@ test.describe('PROJ-5 Darstellung & Schutz', () => {
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vp.width)
     })
   }
+
+  test('Die Meldung nach dem Ablegen verdeckt die Knöpfe nicht (QA BUG-2)', async ({ page }) => {
+    await scan('a.pdf', 20)
+    await scan('b.pdf', 10)
+    await open(page)
+    await nameField(page).fill('Brief')
+    await scanBtn(page).click()
+    const toast = page.getByText(/Abgelegt: /)
+    await expect(toast).toBeVisible()
+    await expect(selected(page)).toContainText('b.pdf')
+    const t = (await toast.boundingBox())!
+    for (const btn of [invoiceBtn(page), scanBtn(page)]) {
+      await btn.scrollIntoViewIfNeeded()
+      const b = (await btn.boundingBox())!
+      const overlap = t.x < b.x + b.width && b.x < t.x + t.width && t.y < b.y + b.height && b.y < t.y + t.height
+      expect(overlap).toBe(false)
+    }
+    // "Scan" is clickable while the message is still shown
+    await expect(scanBtn(page)).toBeEnabled()
+    await scanBtn(page).click({ timeout: 3000 })
+    // b.pdf was filed too (under its proposed date name) → inbox empty
+    await expect(page.getByRole('option')).toHaveCount(0)
+    expect(await ls(path.join(inbox, 'Abgelegt'))).toHaveLength(2)
+  })
 
   test('Desktop: Ablage-Bereich bleibt sichtbar, auch wenn die Felder scrollen', async ({ page, isMobile }) => {
     test.skip(isMobile, 'Desktop-Layout')

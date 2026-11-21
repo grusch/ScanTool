@@ -15,6 +15,9 @@ export function validateFileName(input: string): FileNameCheck {
   if (forbidden) return { ok: false, message: `Unerlaubtes Zeichen: ${forbidden[0]}` }
   if (/[\u0000-\u001f\u007f]/.test(raw)) return { ok: false, message: "Unerlaubtes Steuerzeichen" }
 
+  // Office/OneDrive treat "~$…" as temporary files: not synced, hidden in the inbox list
+  if (raw.startsWith("~$")) return { ok: false, message: "Darf nicht mit ~$ beginnen" }
+
   const name = /\.pdf$/i.test(raw) ? raw : `${raw}.pdf`
   const stem = name.slice(0, -4)
   if (!stem.replace(/[.\s]/g, "")) return { ok: false, message: "Dateiname fehlt" }

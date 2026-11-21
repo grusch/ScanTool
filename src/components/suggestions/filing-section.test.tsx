@@ -156,6 +156,7 @@ describe("Ablegen (PROJ-5)", () => {
     await waitFor(() => expect(filingCalls).toHaveLength(1))
     expect(filingCalls[0]).toEqual({ scan: "a.pdf", target: "scan", fileName: null })
     await screen.findByText(/Abgelegt: Scanner\\Abgelegt\\a\.pdf/)
+    await waitFor(() => expect(scanButton()).toBeEnabled(), { timeout: 3000 }) // short lock after filing
 
     fireEvent.change(nameField(), { target: { value: "Brief Bootslager" } })
     fireEvent.click(scanButton())
@@ -169,8 +170,28 @@ describe("Ablegen (PROJ-5)", () => {
     fireEvent.keyDown(input("Beschreibung"), { key: "Enter", ctrlKey: true })
     await waitFor(() => expect(filingCalls[0]?.target).toBe("rechnung"))
     await waitFor(() => expect(screen.getByRole("option", { name: /b\.pdf/ })).toHaveAttribute("aria-selected", "true"))
+    // short lock after filing (BUG-1) – then the next shortcut works
+    await waitFor(() => expect(scanButton()).toBeEnabled(), { timeout: 3000 })
     fireEvent.keyDown(document.body, { key: "Enter", ctrlKey: true, shiftKey: true })
     await waitFor(() => expect(filingCalls[1]?.target).toBe("scan"))
+  })
+
+  it("a second click or shortcut right after filing does not file the next scan (QA BUG-1)", async () => {
+    renderWorkspace()
+    // next scan b.pdf would be fileable at once: give it a valid date and name
+    fillInvoice()
+    fireEvent.click(invoiceButton())
+    await waitFor(() => expect(screen.getByRole("option", { name: /b\.pdf/ })).toHaveAttribute("aria-selected", "true"))
+    fillInvoice()
+    expect(invoiceButton()).toBeDisabled()
+    expect(scanButton()).toBeDisabled()
+    fireEvent.click(invoiceButton())
+    fireEvent.keyDown(document.body, { key: "Enter", ctrlKey: true })
+    fireEvent.keyDown(document.body, { key: "Enter", ctrlKey: true, shiftKey: true })
+    expect(filingCalls).toHaveLength(1)
+    // after the short lock the buttons work again
+    await waitFor(() => expect(invoiceButton()).toBeEnabled(), { timeout: 3000 })
+    expect(filingCalls).toHaveLength(1)
   })
 
   it("the shortcut does nothing but explain when „Rechnung“ is not possible", async () => {
@@ -203,6 +224,7 @@ describe("Ablegen (PROJ-5)", () => {
     fireEvent.click(invoiceButton())
     expect(await screen.findByText(/x_2\.pdf \(Name war schon vergeben\)/)).toBeInTheDocument()
     filingAnswer = () => filed("Rechnungen\\2026\\y.pdf", { status: "already_filed", undoToken: undefined })
+    await waitFor(() => expect(scanButton()).toBeEnabled(), { timeout: 3000 }) // short lock after filing
     fillInvoice()
     fireEvent.click(invoiceButton())
     expect(await screen.findByText(/War bereits abgelegt – Eingang bereinigt/)).toBeInTheDocument()

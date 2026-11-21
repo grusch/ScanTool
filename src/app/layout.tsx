@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import "./globals.css"
 import { AppHeader } from "@/components/app-header"
 import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/sonner"
+import { AppToaster } from "@/components/app-toaster"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 export const metadata: Metadata = {
@@ -22,7 +22,7 @@ export default function RootLayout({
           <TooltipProvider delayDuration={300}>
             <AppHeader />
             <main>{children}</main>
-            <Toaster position="bottom-right" richColors />
+            <AppToaster />
           </TooltipProvider>
         </ThemeProvider>
       </body>

@@ -24,6 +24,10 @@ describe("validateFileName", () => {
     expect(validateFileName("name..pdf").ok).toBe(false)
     expect(validateFileName("name .pdf").ok).toBe(false)
   })
+  it("rejects names starting with ~$ (OneDrive does not sync them) – QA BUG-3", () => {
+    expect(validateFileName("~$Rechnung.pdf")).toEqual({ ok: false, message: "Darf nicht mit ~$ beginnen" })
+    expect(validateFileName("Rechnung~$.pdf").ok).toBe(true)
+  })
   it("rejects control characters", () => {
     expect(validateFileName("a\u0007b.pdf").ok).toBe(false)
   })

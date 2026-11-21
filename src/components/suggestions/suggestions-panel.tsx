@@ -15,7 +15,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { FilingSection } from "@/components/suggestions/filing-section"
 import { useScanAnalysis } from "@/hooks/use-scan-analysis"
 import { ANALYSIS_MESSAGES } from "@/lib/analysis-api"
-import type { FilingRequest, FilingTarget } from "@/lib/filing-types"
+import type { FilingBusy } from "@/hooks/use-filing"
+import type { FilingRequest } from "@/lib/filing-types"
 import type { InboxFile } from "@/lib/inbox-types"
 import {
   buildFileName,
@@ -37,7 +38,7 @@ interface SuggestionsPanelProps {
   onNameChange: (name: string) => void
   onResetName: () => void
   /** Filing (PROJ-5) */
-  filingBusy: FilingTarget | null
+  filingBusy: FilingBusy
   alreadyCopied: boolean
   onFile: (request: FilingRequest) => void
   /** Scan vanished → refresh the list (selection moves on, PROJ-2 rules) */

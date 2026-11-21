@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { validateFileName } from "@/lib/file-name-rules"
-import type { FilingRequest, FilingTarget } from "@/lib/filing-types"
+import type { FilingBusy } from "@/hooks/use-filing"
+import type { FilingRequest } from "@/lib/filing-types"
 import { parseSwissDate, type FileNameResult } from "@/lib/suggestion-form"
 import { cn } from "@/lib/utils"
 
@@ -23,7 +24,8 @@ interface FilingSectionProps {
   date: string
   onNameChange: (name: string) => void
   onResetName: () => void
-  busy: FilingTarget | null
+  /** Filing running or short lock right after it – buttons and shortcuts are disabled */
+  busy: FilingBusy
   /** Copy is already in the archive, original could not be deleted */
   alreadyCopied: boolean
   onFile: (request: FilingRequest) => void

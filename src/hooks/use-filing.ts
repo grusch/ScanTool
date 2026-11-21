@@ -7,6 +7,14 @@ import type { FilingRequest, FilingTarget } from "@/lib/filing-types"
 
 /** How long the "Abgelegt …" message with "Rückgängig" stays (PROJ-5) */
 export const UNDO_TOAST_MS = 8000
+/**
+ * After a scan left the inbox, buttons and shortcuts stay locked this long, so a
+ * double click or a repeated Strg + Enter never files the next scan unseen (QA BUG-1).
+ */
+export const FILING_COOLDOWN_MS = 1000
+
+/** Which filing runs – "cooldown" = short lock right after a scan was filed */
+export type FilingBusy = FilingTarget | "cooldown" | null
 
 interface UseFilingOptions {
   /** Reloads the inbox list (PROJ-2); resolves when the new list is there */
@@ -20,7 +28,7 @@ interface UseFilingOptions {
  * and refreshes the list so the next scan gets selected. Only one filing at a time.
  */
 export function useFiling({ refresh, onRestored }: UseFilingOptions) {
-  const [busy, setBusy] = useState<FilingTarget | null>(null)
+  const [busy, setBusy] = useState<FilingBusy>(null)
   const busyRef = useRef(false)
   // Scans whose copy is in the archive but whose original could not be deleted
   const [alreadyCopied, setAlreadyCopied] = useState<ReadonlySet<string>>(new Set())
@@ -46,6 +54,8 @@ export function useFiling({ refresh, onRestored }: UseFilingOptions) {
       if (busyRef.current) return // no double filing (fast clicks / repeated shortcut)
       busyRef.current = true
       setBusy(request.target)
+      // true once the scan has left the inbox → the next scan gets selected
+      let moved = false
       try {
         const res = await fileScan(request)
         if (!res.ok) {
@@ -60,6 +70,7 @@ export function useFiling({ refresh, onRestored }: UseFilingOptions) {
           })
           return
         }
+        moved = true
         setAlreadyCopied((s) => {
           if (!s.has(request.scan)) return s
           const next = new Set(s)
@@ -77,8 +88,17 @@ export function useFiling({ refresh, onRestored }: UseFilingOptions) {
           action: token ? { label: "Rückgängig", onClick: () => void undo(token) } : undefined,
         })
       } finally {
-        busyRef.current = false
-        setBusy(null)
+        if (moved) {
+          // Keep the lock a moment: a second click / key press must not hit the next scan
+          setBusy("cooldown")
+          setTimeout(() => {
+            busyRef.current = false
+            setBusy(null)
+          }, FILING_COOLDOWN_MS)
+        } else {
+          busyRef.current = false
+          setBusy(null)
+        }
       }
     },
     [refresh, undo]
