@@ -27,7 +27,8 @@ const swissDate = (ms: number) => {
 }
 
 const panel = (page: Page, name: string) => page.getByLabel(`Vorschläge: ${name}`)
-const fileName = (page: Page) => page.getByTestId('file-name-preview')
+const fileName = (page: Page) => page.getByTestId('file-name-input')
+const fileNameHint = (page: Page) => page.getByTestId('file-name-hint')
 
 /** Load and wait until the page is interactive (WebKit hydrates later – typing before that is reset) */
 async function open(page: Page) {
@@ -80,18 +81,20 @@ test.describe('PROJ-4 Dateiname-Vorschau', () => {
     await scan('rechnung.pdf', 10)
     await open(page)
     const p = panel(page, 'rechnung.pdf')
-    await expect(fileName(page)).toHaveText('Lieferant fehlt · Beschreibung fehlt')
+    await expect(fileName(page)).toHaveValue('')
+    await expect(fileNameHint(page)).toHaveText('Lieferant fehlt · Beschreibung fehlt')
     await p.getByLabel('Datum', { exact: true }).fill('21.11.2026')
     await p.getByLabel('Lieferant', { exact: true }).fill('Müller & Söhne')
     await p.getByLabel('Beschreibung', { exact: true }).fill('Kühlschrank A/B_C')
-    await expect(fileName(page)).toHaveText('261121_Müller-&-Söhne_Kühlschrank-A-B-C.pdf')
+    await expect(fileName(page)).toHaveValue('261121_Müller-&-Söhne_Kühlschrank-A-B-C.pdf')
 
     await p.getByLabel('Dokumenttyp').click()
     await page.getByRole('option', { name: 'Garantieschein' }).click()
-    await expect(fileName(page)).toHaveText('261121_Müller-&-Söhne_Kühlschrank-A-B-C_Garantie.pdf')
+    await expect(fileName(page)).toHaveValue('261121_Müller-&-Söhne_Kühlschrank-A-B-C_Garantie.pdf')
 
     await p.getByLabel('Datum', { exact: true }).fill('31.02.2026')
-    await expect(fileName(page)).toHaveText('Datum ungültig')
+    await expect(fileName(page)).toHaveValue('')
+    await expect(fileNameHint(page)).toHaveText('Datum ungültig')
   })
 
   test('Kürzt auf höchstens 100 Zeichen', async ({ page }) => {
@@ -101,7 +104,7 @@ test.describe('PROJ-4 Dateiname-Vorschau', () => {
     await p.getByLabel('Datum', { exact: true }).fill('01.02.2026')
     await p.getByLabel('Lieferant', { exact: true }).fill('Digitec')
     await p.getByLabel('Beschreibung', { exact: true }).fill('Sehr lange Beschreibung '.repeat(8))
-    const name = (await fileName(page).innerText()).trim()
+    const name = (await fileName(page).inputValue()).trim()
     expect(name.length).toBeLessThanOrEqual(100)
     expect(name).toMatch(/^260201_Digitec_Sehr-lange-Beschreibung.*\.pdf$/)
   })

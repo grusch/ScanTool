@@ -19,6 +19,9 @@ export interface SuggestionFields {
 
 export type FieldName = keyof SuggestionFields
 
+/** What the user changed for one scan; fileName = own file name (PROJ-5), missing = follows the fields */
+export type ScanDraft = Partial<SuggestionFields> & { fileName?: string }
+
 export const EMPTY_FIELDS: SuggestionFields = {
   docType: "",
   date: "",

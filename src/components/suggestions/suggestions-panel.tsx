@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
-import { AlertCircle, FileText, Info, Loader2, RefreshCw, Sparkles } from "lucide-react"
+import { AlertCircle, Info, Loader2, RefreshCw, Sparkles } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,8 +12,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { FilingSection } from "@/components/suggestions/filing-section"
 import { useScanAnalysis } from "@/hooks/use-scan-analysis"
 import { ANALYSIS_MESSAGES } from "@/lib/analysis-api"
+import type { FilingRequest, FilingTarget } from "@/lib/filing-types"
 import type { InboxFile } from "@/lib/inbox-types"
 import {
   buildFileName,
@@ -21,7 +23,7 @@ import {
   mergeFields,
   withFileDateFallback,
   type FieldName,
-  type SuggestionFields,
+  type ScanDraft,
 } from "@/lib/suggestion-form"
 
 interface SuggestionsPanelProps {
@@ -29,8 +31,15 @@ interface SuggestionsPanelProps {
   file: InboxFile | null
   apiKeyPresent: boolean
   /** Values the user typed for this scan (kept per scan while ScanTool is open) */
-  touched: Partial<SuggestionFields>
+  touched: ScanDraft
   onChange: (field: FieldName, value: string) => void
+  /** Own file name (PROJ-5); onResetName = follow the fields again */
+  onNameChange: (name: string) => void
+  onResetName: () => void
+  /** Filing (PROJ-5) */
+  filingBusy: FilingTarget | null
+  alreadyCopied: boolean
+  onFile: (request: FilingRequest) => void
   /** Scan vanished → refresh the list (selection moves on, PROJ-2 rules) */
   onScanMissing: () => void
   /** Time of the last successful list refresh – a still-listed scan is analysed again */
@@ -49,7 +58,9 @@ function Field({ id, label, children, className }: { id: string; label: string; 
 }
 
 /** Right column of the work area: AI suggestions as editable fields (PROJ-4) */
-export function SuggestionsPanel({ file, apiKeyPresent, touched, onChange, onScanMissing, listCheckedAt }: SuggestionsPanelProps) {
+export function SuggestionsPanel(props: SuggestionsPanelProps) {
+  const { file, apiKeyPresent, onChange, onScanMissing, listCheckedAt } = props
+  const { fileName: customName, ...touched } = props.touched
   const { state, reanalyze, retry } = useScanAnalysis(file, apiKeyPresent)
 
   const result = state.status === "done" ? state.result : state.status === "idle" ? null : state.previous
@@ -229,23 +240,21 @@ export function SuggestionsPanel({ file, apiKeyPresent, touched, onChange, onSca
             <Textarea id={id("articles")} value={values.articles} onChange={set("articles")} rows={3} />
           </Field>
         </form>
+      </div>
 
-        <div className="space-y-1 rounded-md border bg-muted/40 p-3" aria-live="polite">
-          <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <FileText className="h-3.5 w-3.5" aria-hidden />
-            Dateiname
-          </p>
-          {fileName.ok ? (
-            <p className="break-all font-mono text-sm" data-testid="file-name-preview">
-              {fileName.name}
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground" data-testid="file-name-preview">
-              {fileName.missing.join(" · ")}
-            </p>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground">Ablegen mit „Scan" / „Rechnung" folgt mit PROJ-5.</p>
+      {/* Fixed footer: file name and the two buttons stay visible while the fields scroll */}
+      <div className="border-t p-3">
+        <FilingSection
+          scan={file.name}
+          autoName={fileName}
+          customName={customName}
+          date={values.date}
+          onNameChange={props.onNameChange}
+          onResetName={props.onResetName}
+          busy={props.filingBusy}
+          alreadyCopied={props.alreadyCopied}
+          onFile={props.onFile}
+        />
       </div>
     </Card>
   )

@@ -22,7 +22,7 @@ export interface InboxState {
   refreshing: boolean
   /** Names of scans that appeared after the first load (cleared on select / after 60 s) */
   newNames: ReadonlySet<string>
-  refresh: () => void
+  refresh: () => Promise<void>
   clearNew: (name: string) => void
 }
 

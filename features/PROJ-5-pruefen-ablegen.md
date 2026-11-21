@@ -1,6 +1,6 @@
 # PROJ-5: Prüfen & Ablegen
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -280,6 +280,22 @@ Beide Schnittstellen sind nur lokal erreichbar, mit demselben Schutz wie bisher.
 
 ### F) Abhängigkeiten (zu installieren)
 Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhandenen Pakete (zod, sonner, shadcn/ui).
+
+## Implementation Notes (Frontend)
+**Gebaut (2026-11-21):**
+- `src/components/suggestions/filing-section.tsx` – **feste Fusszeile** der rechten Spalte (bleibt sichtbar, während die Felder scrollen): Eingabefeld „Dateiname" (vorbelegt aus `buildFileName`, folgt den Feldern bis zur eigenen Änderung), Knopf „Aus Feldern übernehmen", Hinweis bei fehlenden/ungültigen Angaben, Knöpfe **Rechnung** (Haupt) und **Scan** (Neben) mit Ladezustand und Tooltip (Ziel + Kürzel bzw. Grund der Sperre), Zielzeile „Rechnung → Rechnungen\JJJJ\ · Scan → Scanner\Abgelegt\", Vermerk „bereits abgelegt – Original noch im Eingang". Tastenkürzel Strg + Enter / Strg + Umschalt + Enter (auch aus Feldern; gesperrt während Ablegen; bei gesperrter Rechnung nur Hinweis-Toast).
+- `src/lib/file-name-rules.ts` (+ 21 Unit-Tests) – gemeinsame Prüfregel (Browser + Server): verbotene Zeichen, Steuerzeichen, reservierte Windows-Namen, Punkt/Leerzeichen am Ende, max. 100 Zeichen, `.pdf` ergänzen.
+- `src/hooks/use-filing.ts` – `POST /api/filing`, Toast (sonner, 8 s) mit „Rückgängig" → `POST /api/filing/undo`; Liste wird nach dem Ablegen aktualisiert (nächster Scan per PROJ-2-Regel), nach Rückgängig wird der zurückgeholte Scan wieder ausgewählt. Nur ein Ablegen gleichzeitig.
+- `src/lib/filing-types.ts`, `src/lib/filing-api.ts` – Vertrag mit dem Backend und Meldungstexte.
+- `inbox-workspace.tsx` – Entwurf je Scan um `fileName` erweitert (`ScanDraft`), `useFiling` eingebunden; `use-inbox.ts`: `refresh` liefert ein Promise.
+- `suggestions-panel.tsx` – bisherige Dateiname-Vorschau durch den Ablage-Bereich ersetzt.
+
+**Tests:** 17 neue Komponententests (`filing-section.test.tsx`, Server simuliert): Name folgt Feldern / eigener Name / „Aus Feldern übernehmen", ungültiger Name, ohne Datum, Name je Scan, Rechnung mit Jahr aus dem Datumsfeld + nächster Scan, Scan mit Namen bzw. Originalname, Tastenkürzel, Sperre bei Doppelauslösung, Konflikt/bereits abgelegt, Fehler (Ablage/NAS/Rechte), Original nicht gelöscht, Rückgängig inkl. Wiederauswahl und Eingaben, Rückgängig nicht möglich. Bestehende PROJ-4-Tests auf das Dateiname-Feld umgestellt. Vitest gesamt 241/241.
+
+**Abweichungen / Hinweise:**
+- Tastenkürzel hängen am Ablage-Bereich (immer genau einer sichtbar, solange ein Scan ausgewählt ist) statt an der Arbeitsfläche – gleiche Wirkung, einfacher.
+- Geprüft im Dev-Server mit simulierter Schnittstelle (nichts verschoben): Darstellung, Tooltip, Toast mit „Rückgängig", 375 px ohne seitliches Scrollen.
+- **Noch offen (Backend):** `POST /api/filing` und `/api/filing/undo` existieren noch nicht → bis `/backend` meldet Ablegen „Ablegen fehlgeschlagen".
 
 ## QA Test Results
 _To be added by /qa_

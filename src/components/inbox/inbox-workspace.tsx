@@ -6,10 +6,11 @@ import { SuggestionsPanel } from "@/components/suggestions/suggestions-panel"
 import { Card, CardContent } from "@/components/ui/card"
 import { InboxList } from "@/components/inbox/inbox-list"
 import { useInbox } from "@/hooks/use-inbox"
+import { useFiling } from "@/hooks/use-filing"
 import { scanKey } from "@/hooks/use-scan-analysis"
 import { moveSelection, reconcileSelection } from "@/lib/inbox-selection"
 import type { InboxResponse } from "@/lib/inbox-types"
-import type { FieldName, SuggestionFields } from "@/lib/suggestion-form"
+import type { FieldName, ScanDraft } from "@/lib/suggestion-form"
 
 interface InboxWorkspaceProps {
   /** List rendered by the server with the page (null → loaded in the browser) */
@@ -44,7 +45,7 @@ export function InboxWorkspace({ initialInbox, apiKeyPresent }: InboxWorkspacePr
   }, [selected, clearNew])
 
   // Values the user typed, per scan (name + size + date) – kept while ScanTool is open
-  const [drafts, setDrafts] = useState<Record<string, Partial<SuggestionFields>>>({})
+  const [drafts, setDrafts] = useState<Record<string, ScanDraft>>({})
   const selectedFile = files.find((f) => f.name === selected) ?? null
   const draftKey = selectedFile ? scanKey(selectedFile) : ""
   const onFieldChange = useCallback(
@@ -52,6 +53,22 @@ export function InboxWorkspace({ initialInbox, apiKeyPresent }: InboxWorkspacePr
       setDrafts((d) => ({ ...d, [draftKey]: { ...d[draftKey], [field]: value } })),
     [draftKey]
   )
+  const onNameChange = useCallback(
+    (name: string) => setDrafts((d) => ({ ...d, [draftKey]: { ...d[draftKey], fileName: name } })),
+    [draftKey]
+  )
+  const onResetName = useCallback(
+    () =>
+      setDrafts((d) => {
+        const { fileName: _own, ...rest } = d[draftKey] ?? {}
+        return { ...d, [draftKey]: rest }
+      }),
+    [draftKey]
+  )
+
+  // Filing (PROJ-5): list refresh selects the next scan; undo selects the restored one
+  const { refresh } = state
+  const filing = useFiling({ refresh, onRestored: setSelected })
 
   const onMove = useCallback(
     (delta: number) => setSelected((current) => moveSelection(prevIds.current, current, delta)),
@@ -74,6 +91,11 @@ export function InboxWorkspace({ initialInbox, apiKeyPresent }: InboxWorkspacePr
         onChange={onFieldChange}
         onScanMissing={state.refresh}
         listCheckedAt={state.inbox?.checkedAt}
+        onNameChange={onNameChange}
+        onResetName={onResetName}
+        filingBusy={filing.busy}
+        alreadyCopied={selected !== null && filing.alreadyCopied.has(selected)}
+        onFile={filing.file}
       />
     </div>
   )

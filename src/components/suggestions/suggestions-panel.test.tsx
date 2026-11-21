@@ -71,7 +71,9 @@ function renderWorkspace(apiKeyPresent = true, list = inbox("a.pdf", "b.pdf")) {
 }
 
 const field = (label: string) => screen.getByLabelText(label) as HTMLInputElement
-const fileName = () => screen.getByTestId("file-name-preview").textContent
+/** The file name field (PROJ-5) – or, when it is empty, the hint what is missing */
+const fileName = () =>
+  (screen.getByTestId("file-name-input") as HTMLInputElement).value || screen.getByTestId("file-name-hint").textContent
 
 beforeEach(() => {
   // jsdom has no layout: the inbox list scrolls the selected entry into view
