@@ -54,10 +54,10 @@ Regeln je Feld:
 - doc_type: "rechnung" für Rechnungen, Quittungen, Kassenbons und Gutschriften; "garantieschein" für Garantiescheine/-karten. Enthält das PDF beides, gilt "rechnung".
 - date: Rechnungsdatum hat Vorrang vor Liefer- oder Bestelldatum; beim Garantieschein das Kaufdatum. Nur vollständige Daten (Tag, Monat, Jahr), sonst null.
 - supplier: kurzer, gebräuchlicher Name des Händlers, ohne Rechtsform (AG, GmbH …), Ort oder Adresse – z. B. "Digitec" statt "Digitec Galaxus AG, Zürich".
-- description: 2 bis 5 Wörter, die das Hauptprodukt bzw. die Leistung benennen, z. B. "Monitor Dell U2724D". Keine Sonderzeichen wie / \\ : * ? " < > | _.
+- description: 2 bis 5 Wörter, die das gekaufte Hauptprodukt bzw. die Leistung benennen – wie ein Stichwort für die spätere Suche. Beispiele: "Monitor Dell U2724D", "Strom E-Mobility", "Zahnreinigung", "Winterreifen Michelin". Nicht hineinschreiben: Dokumentart (Rechnung, Quittung, Garantie), Datum, Zeitraum/Periode, Nummern, Beträge, Lieferantenname. Keine Sonderzeichen wie / \\ : * ? " < > | _.
 - amount: Gesamtbetrag inklusive MWST als Zahl; bei Gutschriften negativ.
 - currency: dreistelliger ISO-Code der auf dem Dokument genannten Währung, keine Umrechnung.
-- articles: die Hauptpositionen in Kurzform, höchstens 10; Versandkosten, Gebühren, Rabatte und Pfand weglassen.
+- articles: die Hauptpositionen nur als Bezeichnung in Kurzform (ohne Preise, Beträge, Mengen oder Einheiten), höchstens 10; Versandkosten, Gebühren, Rabatte und Pfand weglassen.
 - warranty_months: nur wenn eine Garantiedauer genannt ist, in Monaten (2 Jahre = 24).
 - is_invoice_document: false, wenn es weder Rechnung, Quittung, Kassenbon, Gutschrift noch Garantieschein ist (z. B. ein Brief). Erkennbare Angaben wie Datum oder Absender darfst du trotzdem eintragen; doc_type ist dann null.`
 
@@ -66,6 +66,32 @@ Regeln je Feld:
 function cleanText(v: string | null): string | null {
   const t = v?.replace(/\s+/g, " ").trim()
   return t ? t : null
+}
+
+/**
+ * Description as a search keyword (PROJ-4 BUG-1): no file-name special characters,
+ * no document type words, no periods like "09-10/2026", at most 5 words.
+ */
+export function cleanDescription(v: string | null): string | null {
+  const t = cleanText(v)
+  if (!t) return null
+  const words = t
+    .replace(/[\\/:*?"<>|_]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w && !/^(rechnung|quittung|garantieschein|garantie|kassenbon|gutschrift)$/i.test(w))
+    // years and dates/periods ("2026", "09-10", "01.09.2026") – "iPhone 15", "U2724D" stay
+    .filter((w) => !/^(19|20)\d{2}$/.test(w) && !/^\d+[.,\-–][\d.,\-–]*$/.test(w))
+    .filter((w) => !/^(periode|zeitraum|vom|bis)$/i.test(w))
+  const result = words.slice(0, 5).join(" ").slice(0, 80).trim()
+  return result || null
+}
+
+/** Article without price/amount at the end ("Energie 73.14", "Kabel CHF 9.90" → name only) */
+export function cleanArticle(v: string): string | null {
+  const t = cleanText(v)
+    ?.replace(/\s*(CHF|EUR|USD|Fr\.?)?\s*-?\d[\d'’]*[.,]\d{2}\s*(CHF|EUR|USD|Fr\.?)?$/i, "")
+    .trim()
+  return t ? t.slice(0, 120) : null
 }
 
 function validIsoDate(v: string | null): string | null {
@@ -87,14 +113,13 @@ export function normalize(o: Output): Suggestion {
     docType: o.is_invoice_document ? o.doc_type : null,
     date: validIsoDate(o.date),
     supplier: cleanText(o.supplier)?.slice(0, 80) ?? null,
-    description: cleanText(o.description)?.slice(0, 80) ?? null,
+    description: cleanDescription(o.description),
     amount: o.amount !== null && Number.isFinite(o.amount) ? Math.round(o.amount * 100) / 100 : null,
     currency: /^[A-Z]{3}$/.test(currency) ? currency : null,
     invoiceNumber: cleanText(o.invoice_number)?.slice(0, 60) ?? null,
     articles: o.articles
-      .map((a) => cleanText(a))
+      .map((a) => cleanArticle(a))
       .filter((a): a is string => a !== null)
-      .map((a) => a.slice(0, 120))
       .slice(0, MAX_ARTICLES),
     warrantyMonths: warranty !== null && Number.isInteger(warranty) && warranty > 0 && warranty <= 600 ? warranty : null,
   }

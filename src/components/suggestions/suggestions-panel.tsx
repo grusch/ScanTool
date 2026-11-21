@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { FilingSection } from "@/components/suggestions/filing-section"
+import { useMounted } from "@/hooks/use-mounted"
 import { useScanAnalysis } from "@/hooks/use-scan-analysis"
 import { ANALYSIS_MESSAGES } from "@/lib/analysis-api"
 import type { FilingBusy } from "@/hooks/use-filing"
@@ -63,6 +64,8 @@ export function SuggestionsPanel(props: SuggestionsPanelProps) {
   const { file, apiKeyPresent, onChange, onScanMissing, listCheckedAt } = props
   const { fileName: customName, ...touched } = props.touched
   const { state, reanalyze, retry } = useScanAnalysis(file, apiKeyPresent)
+  // Fields stay disabled until the page is interactive – typing earlier would be lost (PROJ-4 BUG-2)
+  const mounted = useMounted()
 
   const result = state.status === "done" ? state.result : state.status === "idle" ? null : state.previous
   const loading = state.status === "loading"
@@ -176,6 +179,7 @@ export function SuggestionsPanel(props: SuggestionsPanelProps) {
           </p>
         )}
 
+        <fieldset disabled={!mounted} className="contents">
         <form className="grid grid-cols-2 gap-3" onSubmit={(e) => e.preventDefault()} aria-busy={loading}>
           <Field id={id("docType")} label="Dokumenttyp" className="col-span-2 space-y-1.5">
             <Select
@@ -241,10 +245,11 @@ export function SuggestionsPanel(props: SuggestionsPanelProps) {
             <Textarea id={id("articles")} value={values.articles} onChange={set("articles")} rows={3} />
           </Field>
         </form>
+        </fieldset>
       </div>
 
       {/* Fixed footer: file name and the two buttons stay visible while the fields scroll */}
-      <div className="border-t p-3">
+      <fieldset disabled={!mounted} className="min-w-0 border-t p-3">
         <FilingSection
           scan={file.name}
           autoName={fileName}
@@ -256,7 +261,7 @@ export function SuggestionsPanel(props: SuggestionsPanelProps) {
           alreadyCopied={props.alreadyCopied}
           onFile={props.onFile}
         />
-      </div>
+      </fieldset>
     </Card>
   )
 }

@@ -452,6 +452,7 @@ In allen Fällen bleibt das Formular bedienbar. Fehler werden **nicht** gemerkt,
 - **Actual:** „Strom Rechnung E-Mobility" bzw. „Elektrizität Rechnung Periode 09-10/2026" (mit `/`). Bei der zweiten enthalten die Artikel Beträge („Energie 73.14").
 - **Auswirkung:** Gering, der Dateiname wird korrekt bereinigt und das Feld lässt sich überschreiben.
 - **Priority:** Nice to have (Prompt schärfen, z. B. Beispiele, keine Datums-/Periodenangaben, Artikel ohne Beträge)
+- **Status: BEHOBEN (2026-11-21).** Anweisungen an die KI geschärft: Beschreibung als Such-Stichwort mit Beispielen, ohne Dokumentart, Datum, Zeitraum, Nummern, Beträge oder Lieferant; Artikel nur als Bezeichnung ohne Preise/Mengen. Zusätzlich bereinigt der Server jede Antwort (`cleanDescription`: Sonderzeichen, Wörter wie „Rechnung“/„Garantie“, Jahreszahlen und Datums-/Periodenangaben raus, max. 5 Wörter – Modellbezeichnungen wie „iPhone 15“ bleiben; `cleanArticle`: Betrag am Ende entfernt). 18 Unit-Tests mit den echten Beispielen. Wirkt für neue Analysen und „Neu analysieren“; bereits gemerkte Vorschläge bleiben unverändert.
 
 #### BUG-2: Eingaben in den ersten Sekunden nach dem Laden gehen verloren
 - **Severity:** Low
@@ -459,6 +460,7 @@ In allen Fällen bleibt das Formular bedienbar. Fehler werden **nicht** gemerkt,
 - **Expected:** Eingabe bleibt
 - **Actual:** Beim Übernehmen der Seite durch React wird das Feld zurückgesetzt
 - **Priority:** Nice to have (Felder bis zur Bereitschaft deaktivieren o. ä.)
+- **Status: BEHOBEN (2026-11-21).** Formular und Ablage-Bereich sind gesperrt, bis React die Seite übernommen hat (`useMounted` + `fieldset disabled`), danach sofort bedienbar – Eingaben gehen nicht mehr verloren. Gleicher Hook wie beim Hell/Dunkel-Umschalter. E2E PROJ-4 + PROJ-5 in 4 Browsern: 112/112 grün.
 
 #### BUG-3: Grau vorbelegte Beispieltexte wirken wie Werte – BEHOBEN (2026-11-21)
 - **Severity:** Low
@@ -476,7 +478,7 @@ In allen Fällen bleibt das Formular bedienbar. Fehler werden **nicht** gemerkt,
 ### Summary
 - **Acceptance Criteria:** 35/35 passed (1 dokumentierte Abweichung bei „Neu analysieren")
 - **Edge Cases:** 8/9 geprüft ok, 1 mangels Testmaterial nicht geprüft
-- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low)
+- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low) – alle behoben
 - **Security:** Pass
 - **Production Ready:** YES
 - **Recommendation:** BUG-3 und den Änderungswunsch „Datum-Fallback" vor bzw. mit PROJ-5 umsetzen

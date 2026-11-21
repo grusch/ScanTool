@@ -1,21 +1,10 @@
 "use client"
 
-import { useSyncExternalStore } from "react"
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-
-const noop = () => () => {}
-
-/** false on the server and during hydration, true afterwards – no setState in an effect needed */
-function useMounted() {
-  return useSyncExternalStore(
-    noop,
-    () => true,
-    () => false
-  )
-}
+import { useMounted } from "@/hooks/use-mounted"
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
