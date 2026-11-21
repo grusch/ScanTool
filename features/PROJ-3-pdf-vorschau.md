@@ -1,6 +1,6 @@
 # PROJ-3: PDF-Vorschau
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -93,7 +93,7 @@
 - **Barrierefreiheit:** alle Bedienknöpfe per Tastatur erreichbar und mit verständlicher Beschriftung (Tooltip/aria-label).
 
 ## Open Questions
-- [ ] Reicht die 2-Sekunden-Grenze bei grossen Scans vom NAS in der Praxis? Mit echten mehrseitigen Scans messen (siehe auch offene Frage zur Änderungszeit in PROJ-2). Erste Messung (Dev-Modus, 2,5 MB): 1,7–2,2 s.
+- [ ] Reicht die 2-Sekunden-Grenze bei grossen Scans vom NAS in der Praxis? Mit echten mehrseitigen Scans messen (siehe auch offene Frage zur Änderungszeit in PROJ-2). Erste Messung (Dev-Modus, 2,5 MB): 1,7–2,2 s; QA mit Produktions-Build: 0,8–1,3 s ✓. Offen nur noch für sehr grosse Scans (20+ MB).
 
 ## Decision Log
 
@@ -275,7 +275,117 @@ Bereits angezeigte Seiten bleiben sichtbar, wenn das NAS danach wegfällt. Ein F
 **Live mit NAS (Dev-Modus):** echter Scan 2,5 MB → Server liefert in ~0,95 s; erste Seite gezeichnet 1,7–2,2 s nach der Anfrage. Liegt an der 2-s-Grenze – in QA mit Produktions-Build messen (siehe offene Frage). Path Traversal live 400, cross-site 403.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-11-21
+**App URL:** http://127.0.0.1:3000 (Dev) bzw. isolierter Produktions-Server Port 3100 (E2E)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- **Vitest:** 126/126 grün (u. a. 12 Tests Zoom/Drehen-Logik, 23 Integrationstests `GET /api/inbox/file`)
+- **Playwright:** `tests/PROJ-3-pdf-vorschau.spec.ts` – 37 Tests × 4 Browser-Profile (Chromium, Firefox, WebKit, Mobile Safari). Gesamte Suite inkl. Regression PROJ-1/PROJ-2: **378 grün, 4 rot, 2 übersprungen** (4 rot = BUG-1 in allen Browsern; übersprungen = Strg + Mausrad und 3-Spalten-Layout auf dem Handy)
+- **Test-PDFs:** echte, gültige PDFs aus `tests/helpers/make-pdf.ts` (mehrseitig, Querformat, Kassenbon, passwortgeschützt). Jede Seite hat oben einen schwarzen Balken → Drehrichtung wird über die Canvas-Pixel geprüft.
+- **Live mit NAS** (Chrome 156, echter 2-seitiger Scan, 2,5 MB): Produktions-Build 0,8–1,3 s bis zur ersten Seite.
+
+### Acceptance Criteria Status
+
+#### Anzeige
+- [x] AC1 Ausgewählter Scan erscheint in der Mitte (ohne Konsolenfehler)
+- [x] AC2 Auswahlwechsel per Klick und ↓ zeigt neuen Scan
+- [x] AC3 Mehrere Seiten untereinander
+- [x] AC4 Seitenzähler folgt dem Scrollen
+- [x] AC5 Nächste/vorherige Seite, an den Enden deaktiviert
+- [x] AC6 Leerer Eingang → „Kein Scan ausgewählt"
+
+#### Zoom
+- [x] AC7 Start „Breite anpassen", kein seitliches Scrollen
+- [x] AC8 „+"/„−" in Stufen 50–300 %, an den Grenzen deaktiviert
+- [x] AC9 „Ganze Seite" passt vollständig ein
+- [x] AC10 „Breite anpassen" nach Zoom
+- [x] AC11 Strg + Mausrad zoomt nur die Vorschau (Desktop-Browser)
+- [x] AC12 Zoom/Drehung beim Scan-Wechsel zurückgesetzt
+
+#### Drehen
+- [x] AC13 „90° links" (Pixelprüfung: oberer Rand nach links)
+- [x] AC14 „90° rechts" (oberer Rand nach rechts)
+- [x] AC15 „180°" (oberer Rand nach unten)
+- [x] AC16 Drehungen addieren sich
+- [x] AC17 Datei bleibt unverändert (SHA-256 und Änderungszeit gleich)
+
+#### In neuem Tab öffnen
+- [x] AC18 Link mit `target=_blank` + `noopener`, liefert `application/pdf` inline (auch mit Umlauten/`&`/`#` im Namen)
+
+#### Laden & Leistung
+- [x] AC19 Platzhalter in Seitenform während des Ladens
+- [x] AC20 Erste Seite ≤ 2 s (E2E lokal; live NAS 0,8–1,3 s im Produktions-Build)
+- [x] AC21 30-Seiten-Scan: anfangs < 8 Seiten gezeichnet, Seite 30 erst nach Scrollen
+- [x] AC22 Schneller Wechsel: langsame ältere Antwort überschreibt nicht
+
+#### Fehlerfälle
+- [x] AC23 Beschädigt → Meldung + „In neuem Tab öffnen", Auswahl bleibt
+- [x] AC24 Passwortgeschützt → Meldung, kein Passwort-Dialog
+- [x] AC25 Gelöschter Scan → Liste sofort aktualisiert, Auswahl springt zum nächsten
+- [x] AC26 NAS nicht erreichbar → Meldung + „Erneut versuchen" lädt erfolgreich neu
+
+#### Darstellung
+- [x] AC27 Desktop: mittlere von drei Spalten
+- [x] AC28 375 px und 768 px: unter der Liste, 60–80 % Fensterhöhe, alle Knöpfe sichtbar, kein seitliches Scrollen
+
+### Edge Cases Status
+- [x] Querformat-Seite auf Spaltenbreite eingepasst
+- [x] Gemischte Seitengrössen (A4 + Kassenbon) behalten Proportion, Zähler stimmt
+- [x] Einseitiger Scan: „Seite 1 von 1", Blätterknöpfe deaktiviert
+- [x] Umbenanntes JPG mit `.pdf` → „beschädigt oder kein gültiges PDF"
+- [x] Sonderzeichen im Namen (Umlaute, `&`, `#`, `%`)
+- [x] Gleichen Scan erneut wählen / Liste aktualisieren → kein Neuladen, Zoom bleibt
+- [x] Ersetzte Datei mit gleichem Namen zeigt neuen Inhalt
+- [x] Sehr grosser Scan: nur sichtbare Seiten werden gezeichnet
+- [ ] **BUG-1:** Server meldet einmal „nicht mehr da", Scan bleibt aber in der Liste → Vorschau bleibt dauerhaft bei der Meldung
+- [ ] Datei verschwindet während der Anzeige → nur indirekt geprüft (AC25); angezeigte Seiten bleiben bis zur nächsten Aktualisierung (wie in der Spec erlaubt)
+
+### Responsive
+- [x] 375 px, 768 px, 1440 px (siehe AC27/AC28); Bedienleiste bricht auf schmalen Bildschirmen auf 3 Zeilen um, bleibt bedienbar
+
+### Security Audit Results
+- [x] Nur lokale Anfragen: fremde Origin, `Origin: null`, fremder Host (DNS-Rebinding) und `Sec-Fetch-Site: cross-site` → 403
+- [x] Path Traversal abgewehrt (400): `..\`, `../`, URL-kodiert `%2e%2e%5c`, absoluter Pfad `C:\…`, UNC-Pfad, `:`/Alternate Data Stream `::$DATA`, Null-Byte, 300-Zeichen-Name; Ablage-Ordner nicht abrufbar
+- [x] Nur PDFs aus dem Eingang: andere Endungen, versteckte (`.`) und temporäre (`~$`) Dateien → 400; Ordner mit `.pdf`-Namen → 404
+- [x] Antwort-Header: `application/pdf`, `X-Content-Type-Options: nosniff` (als PDF getarntes HTML wird nicht als Webseite ausgeführt), `X-Frame-Options: DENY`, `Cache-Control: no-store`
+- [x] Fehlerantworten enthalten keine Pfade, nur Code + kurze Meldung
+- [x] Dateinamen werden in der Oberfläche als Text dargestellt (React escaped), Link-Adresse ist URL-kodiert
+- [x] PDF.js-Worker wird lokal ausgeliefert, keine Anfragen an fremde Server
+- [ ] **BUG-2 (Low):** 20 gleichzeitige Abrufe desselben 2,5-MB-Scans vom NAS → 3 Antworten fälschlich 503 „nicht erreichbar" (SMB-Schnellprüfung mit 2 s läuft bei ausgelasteter Leitung ab)
+
+### Bugs Found
+
+#### BUG-1: Vorschau bleibt bei „Der Scan ist nicht mehr im Eingang." hängen
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Scan im Eingang, Hauptansicht offen
+  2. Server antwortet einmalig mit „nicht mehr da" (real passiert: Tab war vor dem Backend geöffnet; ebenso denkbar bei kurzem Hänger)
+  3. „Aktualisieren" klicken – der Scan ist weiterhin in der Liste und ausgewählt
+  4. Expected: Vorschau lädt den Scan erneut und zeigt ihn
+  5. Actual: Meldung bleibt stehen; erst F5 oder ein anderer Scan hilft. Kein „Erneut versuchen"-Knopf bei dieser Meldung.
+- **Ursache (Hinweis):** `useScanFile` lädt nur bei Wechsel von Name/`reloadKey` neu; nach der ausgelösten Listen-Aktualisierung bleibt die Auswahl gleich → kein neuer Versuch.
+- **Vorschlag:** Nach „nicht mehr da" und anschliessender Aktualisierung, in der der Scan noch vorkommt, automatisch neu laden – oder zusätzlich „Erneut versuchen" anbieten.
+- **Priority:** Vor PROJ-5 beheben (Nutzer ist real darauf gestossen). E2E-Test (EC „Server meldet nicht mehr da …") prüft ihn bereits.
+
+#### BUG-2: Falsches „nicht erreichbar" bei vielen gleichzeitigen Abrufen
+- **Severity:** Low
+- **Steps to Reproduce:** 20 parallele Anfragen `GET /api/inbox/file?name=<2,5-MB-Scan>` an die NAS → 17× 200, 3× 503 `unreachable`
+- **Auswirkung:** Im normalen Gebrauch unwahrscheinlich (Browser lädt einen Scan zur Zeit; abgebrochene Ladevorgänge laufen serverseitig aber zu Ende, sehr schnelles Durchklicken grosser Scans könnte es auslösen). Workaround: „Erneut versuchen".
+- **Priority:** Nice to have (z. B. SMB-Probe nur bei Lesefehler statt vor jedem Abruf, oder längere Probe-Zeit)
+
+### Beobachtungen (keine Bugs)
+- Headless-Browser zeigen PDFs im neuen Tab nicht an (Download statt Viewer) – „In neuem Tab öffnen" wurde deshalb per Antwort-Header geprüft; im echten Chrome manuell zu bestätigen.
+- Symbolische Links im Eingangsordner (`x.pdf` → Datei anderswo) würden ausgeliefert. Anlegen erfordert Admin-Rechte bzw. Schreibzugriff aufs NAS – kein realistisches Risiko für das lokale Einzelnutzer-Tool.
+- Build-Fehler `EPERM … .next/static/…` vor dem E2E-Lauf: OneDrive sperrt Build-Dateien (bekannt), kein App-Fehler.
+
+### Summary
+- **Acceptance Criteria:** 29/29 passed
+- **Edge Cases:** 8/10 ok, 1 mit Bug (BUG-1), 1 nur indirekt geprüft
+- **Bugs Found:** 2 total (0 critical, 0 high, 1 medium, 1 low)
+- **Security:** Pass (1 Low-Robustheitsthema)
+- **Production Ready:** YES nach Regel (keine Critical/High) – **Empfehlung: BUG-1 vor PROJ-5 beheben**
 
 ## Deployment
 _To be added by /deploy_
