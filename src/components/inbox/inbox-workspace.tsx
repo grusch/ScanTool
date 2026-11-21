@@ -37,8 +37,10 @@ export function InboxWorkspace({ initialInbox }: InboxWorkspaceProps) {
   // Re-apply the selection rules whenever the list content changes
   useEffect(() => {
     const next = idsKey ? idsKey.split("\n") : []
-    setSelected((current) => reconcileSelection(prevIds.current, next, current))
+    // Capture the previous list now: the state updater runs later, after the ref was overwritten
+    const prev = prevIds.current
     prevIds.current = next
+    setSelected((current) => reconcileSelection(prev, next, current))
   }, [idsKey])
 
   // Selecting a scan removes its "new" marker

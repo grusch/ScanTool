@@ -293,7 +293,7 @@ _Stand 2026-11-21 – /backend_
 - [x] AC8 Ältester Scan beim Öffnen ausgewählt
 - [x] AC9 Klick wählt aus
 - [x] AC10 ↑/↓ wechseln, an den Enden bleibt die Auswahl stehen (Klick fokussiert die Liste, Tastatur funktioniert danach direkt)
-- [ ] **AC11 BUG-1:** Verschwindet der ausgewählte Scan, springt die Auswahl auf den **ältesten** statt auf den nächsten (bzw. vorherigen)
+- [x] **AC11 (BUG-1 behoben):** Verschwindet der ausgewählte Scan, springt die Auswahl auf den **ältesten** statt auf den nächsten (bzw. vorherigen)
 - [x] AC12 Auswahl bleibt bei Aktualisierung mit neuen Scans erhalten
 
 #### Aktualisierung
@@ -314,7 +314,7 @@ _Stand 2026-11-21 – /backend_
 ### Edge Cases Status
 - [x] 210 Scans: Liste scrollt, ↓ hält Auswahl im sichtbaren Bereich
 - [x] Gleicher Zeitstempel → stabile Reihenfolge nach Name (auch nach Aktualisierung)
-- [ ] Umbenannte Datei: erscheint korrekt als neuer Eintrag, **Auswahl rückt aber nicht nach (BUG-1)**
+- [x] Umbenannte Datei: erscheint korrekt als neuer Eintrag, Auswahl rückt nach (nach Fix BUG-1)
 - [x] Sehr lange Namen gekürzt, kein horizontales Scrollen (375 px)
 - [x] 0-Byte-Datei: wird angezeigt (Öffnen → PROJ-3)
 - [x] Datum in der Zukunft: erscheint nach zweiter Beobachtung, keine „seit"-Markierung
@@ -344,6 +344,7 @@ _Stand 2026-11-21 – /backend_
 - **Ursache (Hinweis für Entwicklung):** `inbox-workspace.tsx` ruft die Auswahl-Regel in einem React-Updater auf (`setSelected(current => reconcileSelection(prevIds.current, …))`) und überschreibt `prevIds.current` direkt danach. Der Updater läuft erst beim nächsten Rendern und sieht dann bereits die *neue* Liste als „vorherige" → Regel fällt auf „ältester" zurück. Die Regel selbst (`inbox-selection.ts`) ist korrekt (Unit-Tests grün).
 - **Auswirkung:** Gering beim Abarbeiten von oben nach unten (ältester = nächster); spürbar, sobald man einen Scan aus der Mitte bearbeitet – nach dem Ablegen (PROJ-5) springt die Auswahl dann nach oben.
 - **Priority:** Vor PROJ-5 beheben (kleiner Fix); E2E-Tests (AC11, „Umbenannte Datei") prüfen ihn bereits und werden nach dem Fix grün.
+- **Status: BEHOBEN (2026-11-21).** `prevIds.current` wird vor `setSelected` in eine lokale Variable gelesen. Nachtest: Vitest 91/91, PROJ-2-E2E 108/108 grün (AC11 und „Umbenannte Datei" in allen 4 Browsern; ein einmaliger Ausreißer in Firefox bei AC5+AC6 lief bei 3 Wiederholungen stabil grün).
 
 ### Beobachtungen (keine Bugs)
 - Dateien mit Windows-Attribut „versteckt" und Endung `.pdf` werden angezeigt – bewusste Entscheidung (Ignorieren nur per Namensmuster, siehe Technical Decisions).
@@ -351,11 +352,11 @@ _Stand 2026-11-21 – /backend_
 - Live mit NAS: echter Scan `CHENGPR006_004617.pdf` wird angezeigt, Abfrage 0,08 s.
 
 ### Summary
-- **Acceptance Criteria:** 20/21 passed (AC11 → BUG-1)
-- **Edge Cases:** 7/9 ok, 1 mit Bug (BUG-1), 1 nur mit echtem Scan prüfbar
-- **Bugs Found:** 1 total (0 critical, 0 high, 1 medium, 0 low)
+- **Acceptance Criteria:** 21/21 passed (AC11 nach Fix von BUG-1)
+- **Edge Cases:** 8/9 ok, 1 nur mit echtem Scan prüfbar
+- **Bugs Found:** 1 total (0 critical, 0 high, 1 medium, 0 low) – BUG-1 behoben
 - **Security:** Pass
-- **Production Ready:** YES nach Regel (keine Critical/High) – **Empfehlung: BUG-1 vor PROJ-5 beheben**, da das Ablegen genau diese Regel nutzt
+- **Production Ready:** YES
 
 ## Deployment
 _To be added by /deploy_
