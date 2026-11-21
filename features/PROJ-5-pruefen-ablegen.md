@@ -1,6 +1,6 @@
 # PROJ-5: Prüfen & Ablegen
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -544,3 +544,10 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 - Rauchtest der Produktionsversion mit echten Daten (Ablegen dabei blockiert): 8 Scans im Eingang, Vorschau (Ganze Seite), KI-Vorschläge + Dateiname, Knöpfe aktiv, PDF.js-Hilfsdateien ausgeliefert, Einstellungen erreichbar, keine Konsolenfehler. Dabei 1 neuer Scan echt analysiert (~0,1 Rp., Ergebnis gemerkt).
 - Vorab: Typprüfung ok, Vitest 277/277, E2E-Gesamtlauf 497/498 (1 einmaliger Firefox-Ausreisser, wiederholt 5/5 grün). `npm run lint` ist seit der Vorlage (Next 16) defekt – nicht Teil des Deployments.
 - Keine neuen Umgebungsvariablen (weiterhin nur `ANTHROPIC_API_KEY` in `.env.local`). Neue lokale Datei: `data/analyses.json` (gitignored).
+
+### Deployment Erweiterung „Löschen“ → Papierkorb (2026-11-21)
+**Version:** Git-Tag `v1.5.2-PROJ-5`
+- `npm run live:build` neu erstellt (`.next-live`, Port 3030). ScanTool lief zu diesem Zeitpunkt nicht, deshalb musste nichts geschlossen werden.
+- Rauchtest der Produktionsversion (Ablegen und KI-Analyse blockiert, nichts verschoben, keine Kosten): Startseite und Einstellungen laden, keine Konsolenfehler. Der echte Eingang war leer, daher war der Knopf live nicht sichtbar. Abgedeckt durch die E2E-Tests auf einem Produktions-Build (103 bestanden).
+- Vorab: `tsc` ok, Vitest 312/312, E2E PROJ-5 103 bestanden / 5 übersprungen, Regression aller Features 529/529 (vor den Bugfixes). `npm run lint` weiterhin defekt (Vorlage).
+- Der Ordner `Scanner\Papierkorb\` entsteht auf der NAS beim ersten „Löschen“ und wird von ScanTool nie geleert.
