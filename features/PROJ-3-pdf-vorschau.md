@@ -407,3 +407,4 @@ Bereits angezeigte Seiten bleiben sichtbar, wenn das NAS danach wegfällt. Ein F
 - Einstellungen (`data/settings.json`) und API-Schlüssel (`.env.local`) sind dieselben wie im Dev-Betrieb.
 - Geprüft: Build ok, 126/126 Unit-/Integrationstests, Start/zweiter Start, Hauptansicht mit echten NAS-Scans und Vorschau in Chrome ohne Fehler, Bindung nur auf 127.0.0.1.
 - Vercel, Sentry, Lighthouse und Rate-Limiting aus dem Standard-Deploy-Skill entfallen (lokales Einzelnutzer-Tool ohne Internet-Zugang von aussen).
+- **Neu deployt 2026-11-21** mit `v1.5.0-PROJ-5` (enthält Fixes seit `v1.3.0-PROJ-3`).

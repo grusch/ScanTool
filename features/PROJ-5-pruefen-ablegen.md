@@ -1,6 +1,6 @@
 # PROJ-5: Prüfen & Ablegen
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -448,4 +448,12 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 - **Recommendation:** Deploy (lokal: `npm run live:build`)
 
 ## Deployment
-_To be added by /deploy_
+**Deployed:** 2026-11-21 – lokaler Produktivbetrieb (kein Hosting, laut PRD nur auf dem eigenen PC)
+**URL:** http://127.0.0.1:3030 (nur lokal erreichbar)
+**Version:** Git-Tag `v1.5.0-PROJ-5` (MVP komplett: PROJ-1 bis PROJ-5)
+
+- Start: `ScanTool.cmd` bzw. Desktop-Verknüpfung darauf, oder `npm run live`. Nach Code-Änderungen: ScanTool-Fenster schliessen, `npm run live:build`, neu starten.
+- Build neu erstellt (enthält KI-Analyse, Ablegen, Datum-Fallback, Schwarz-Weiss-Scans, Standard-Zoom „Ganze Seite", Fixes aus den QA-Runden).
+- Rauchtest der Produktionsversion mit echten Daten (Ablegen dabei blockiert): 8 Scans im Eingang, Vorschau (Ganze Seite), KI-Vorschläge + Dateiname, Knöpfe aktiv, PDF.js-Hilfsdateien ausgeliefert, Einstellungen erreichbar, keine Konsolenfehler. Dabei 1 neuer Scan echt analysiert (~0,1 Rp., Ergebnis gemerkt).
+- Vorab: Typprüfung ok, Vitest 277/277, E2E-Gesamtlauf 497/498 (1 einmaliger Firefox-Ausreisser, wiederholt 5/5 grün). `npm run lint` ist seit der Vorlage (Next 16) defekt – nicht Teil des Deployments.
+- Keine neuen Umgebungsvariablen (weiterhin nur `ANTHROPIC_API_KEY` in `.env.local`). Neue lokale Datei: `data/analyses.json` (gitignored).

@@ -8,9 +8,9 @@
 | Bereich | Stand |
 |---------|-------|
 | Projektidee / PRD | Festgelegt (`/init` am 2026-11-21) |
-| Features | 12 definiert; PROJ-1 bis PROJ-3 **Deployed** (lokal), PROJ-4 bis PROJ-12 Roadmap |
-| Frontend | Einstellungen, Eingangsliste, PDF-Vorschau |
-| Backend | Next.js-API (Dateisystem, Claude API); Supabase erst ab P1 |
+| Features | 12 definiert; **MVP komplett**: PROJ-1 bis PROJ-5 Deployed (lokal), PROJ-6 bis PROJ-12 Roadmap |
+| Frontend | Einstellungen, Eingangsliste, PDF-Vorschau, KI-Vorschläge, Ablegen (Rechnung/Scan, Rückgängig) |
+| Backend | Next.js-API (Dateisystem, Claude API mit Haiku 5.5, Ergebnis-Speicher `data/analyses.json`); Supabase erst ab P1 |
 | Deployment | Lokaler Produktivbetrieb auf http://127.0.0.1:3030 (`ScanTool.cmd` / `npm run live`), kein Hosting |
 
 ## Projektidee
