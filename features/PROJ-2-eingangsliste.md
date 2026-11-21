@@ -116,6 +116,7 @@
 | Parallele, begrenzte Dateiabfragen + 10-s-Obergrenze, NAS-Vorprüfung aus PROJ-1 | Schnell bei vielen Dateien, ohne NAS zu überlasten; kein Hänger | 2026-11-21 |
 | Ignorieren per Namensmuster (`.`, `~$`, `.tmp`, `.part`) statt Windows-Attribut „versteckt" | Attribut ist ohne Zusatzpaket nicht lesbar; Muster deckt Scanner-/Office-Temporärdateien ab | 2026-11-21 |
 | Keine neuen Pakete | Vorhandene Bausteine reichen | 2026-11-21 |
+| Ordnerprobleme als `status` mit HTTP 200 statt Fehlercode | Oberfläche unterscheidet „nicht erreichbar" (letzten Stand zeigen) von echten Serverfehlern | 2026-11-21 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
@@ -240,6 +241,28 @@ _Stand 2026-11-21 – /frontend_
 **Abweichungen / Hinweise:**
 - Zwei Layout-Fallen behoben: shadcn-ScrollArea (Radix) rendert ihren Inhalt als Tabelle → lange Namen verbreiterten die Liste (per Klasse auf `block` gezwungen, Komponente selbst unverändert); einspaltiges Raster auf Mobile wuchs mit dem Inhalt (`grid-cols-1`).
 - Nebenbei: Typfehler in einem PROJ-1-Test (`test-connection.test.ts`, Mock-Rückgabewert) behoben – `next build` prüft Testdateien nicht, `tsc` schon.
+
+## Implementation Notes (Backend)
+_Stand 2026-11-21 – /backend_
+
+**Keine Datenbank.** Nur eine Server-Funktion und eine Route.
+
+**API:** `GET /api/inbox` (`src/app/api/inbox/route.ts`) → `InboxResponse`. Ordnerprobleme kommen als `status` mit HTTP 200 (`unreachable` / `not_found` / `no_access` / `not_a_directory`), damit die Oberfläche den letzten Stand weiter zeigen kann; nur unerwartete Fehler → 500. Zugriffsschutz aus PROJ-1 (`local-guard`).
+
+**Server-Logik** `src/lib/server/inbox.ts` → `listInbox()`:
+- Ordner ausschliesslich aus den gespeicherten Einstellungen (Query-Parameter werden ignoriert – per Test geprüft)
+- NAS-Vorprüfung (`networkGuard`, ~2 s) + 10-s-Obergrenze aus PROJ-1
+- Filter: nur Dateien, Endung `.pdf` (gross/klein egal), nicht beginnend mit `.` oder `~$`
+- Grösse/Änderungszeit per `stat`, max. 16 parallel; zwischenzeitlich verschwundene Dateien werden übersprungen
+- Stabilität (5 s): Änderungszeit ≥ 5 s alt **oder** gleiche Grösse/Änderungszeit seit ≥ 5 s beobachtet (In-Memory-Map, verschwundene Dateien werden daraus entfernt)
+- Sortierung: Änderungszeit aufsteigend, bei Gleichstand Dateiname
+- `src/lib/server/folders.ts`: `networkGuard` exportiert (wiederverwendet)
+
+**Hauptseite:** `src/app/page.tsx` liefert die erste Liste serverseitig mit (`initialInbox={await listInbox()}`) → keine Ladeanzeige beim Öffnen.
+
+**Tests:** 13 Integrationstests (`src/app/api/inbox/inbox.test.ts`, echte Temp-Ordner, simulierte Uhr): Sortierung, Filter, gleiche Zeitstempel, leerer Eingang, Datei im Schreibvorgang, Freigabe nach 5 s, Zukunftsdatum (zweite Beobachtung), wachsende Datei bleibt verborgen, gelöschter Ordner, nicht konfiguriert, NAS nicht erreichbar < 5 s, Query-Parameter ignoriert, fremde Website → 403. Gesamt: Vitest 82/82, `tsc` sauber, PROJ-1-E2E (Chromium) 32/32 als Regression.
+
+**Live geprüft** (echtes NAS `\\fritz.box\FRITZ.NAS\FRITZ\Scanner`): `GET /api/inbox` in 0,08 s, liefert `CHENGPR006_004617.pdf` (2,5 MB, 13.11.2026); Hauptseite in 0,45 s; fremder Origin → 403.
 
 ## QA Test Results
 _To be added by /qa_

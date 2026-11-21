@@ -12,7 +12,7 @@ function errCode(err: unknown): string | undefined {
 }
 
 /** For network paths: null if reachable, otherwise an "unreachable" result. */
-async function networkGuard(p: string): Promise<FolderCheck | null> {
+export async function networkGuard(p: string): Promise<FolderCheck | null> {
   const host = uncHost(p)
   if (host && !(await isSmbHostReachable(host))) return { status: "unreachable", path: p }
   return null

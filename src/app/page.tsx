@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { ApiKeyNotice } from "@/components/api-key-notice"
 import { InboxWorkspace } from "@/components/inbox/inbox-workspace"
+import { listInbox } from "@/lib/server/inbox"
 import { getSettingsStatus, isConfigured } from "@/lib/server/settings-service"
 
 // Always evaluate on request: folders may have been renamed or deleted meanwhile.
@@ -14,8 +15,8 @@ export default async function Home() {
   return (
     <div className="flex w-full flex-col gap-4 px-4 py-4 sm:px-6 lg:h-[calc(100dvh-3.5rem)]">
       {!status.apiKeyPresent && <ApiKeyNotice />}
-      {/* Initial list is delivered by the PROJ-2 backend; until then it loads in the browser */}
-      <InboxWorkspace initialInbox={null} />
+      {/* First list is rendered with the page → visible immediately, no loading flicker */}
+      <InboxWorkspace initialInbox={await listInbox()} />
     </div>
   )
 }
