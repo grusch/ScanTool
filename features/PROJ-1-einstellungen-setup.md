@@ -1,6 +1,6 @@
 # PROJ-1: Einstellungen & Setup
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -76,7 +76,7 @@
 - Pfadprüfung reagiert spürbar sofort (< 1 s)
 
 ## Open Questions
-- [ ] Soll die Einstellungsseite eine Kurzanleitung enthalten, wie man einen API-Schlüssel in der Anthropic Console anlegt?
+- [x] Soll die Einstellungsseite eine Kurzanleitung enthalten, wie man einen API-Schlüssel in der Anthropic Console anlegt? → Ja, aufklappbar (siehe Tech Design)
 
 ## Decision Log
 
@@ -96,12 +96,119 @@
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Einstellungen in Datei `data/settings.json` (serverseitig, gitignored) statt localStorage | Server braucht die Pfade für Dateioperationen; überlebt Browser-Wechsel/Cache-Löschen | 2026-11-21 |
+| Keine Datenbank für Einstellungen | Nur zwei Werte; Supabase erst mit PROJ-7 | 2026-11-21 |
+| Next.js-Server nur an 127.0.0.1 binden | Server kann Ordner anlegen/Dateien verschieben – darf nicht aus dem Heimnetz erreichbar sein; ersetzt fehlenden Login | 2026-11-21 |
+| Pfade normalisieren und case-insensitiv vergleichen | Windows-Pfade; zuverlässige Erkennung „identisch / ineinander" | 2026-11-21 |
+| Verbindungstest = minimaler Aufruf mit kleinstem Claude-Modell | Erkennt ungültigen Schlüssel, fehlendes Guthaben und Netzfehler; Kosten vernachlässigbar. „Modelle auflisten" erkennt fehlendes Guthaben nicht | 2026-11-21 |
+| `@anthropic-ai/sdk` als einzige neue Abhängigkeit | Offizielles SDK mit eindeutigen Fehlertypen; wird in PROJ-4 wiederverwendet | 2026-11-21 |
+| Zugangsprüfung serverseitig beim Seitenaufruf | Gesperrte Hauptansicht blitzt nicht kurz auf | 2026-11-21 |
+| API-Schlüssel nur serverseitig lesen, an Oberfläche nur „vorhanden ja/nein" | Schlüssel darf nie im Browser landen | 2026-11-21 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Überblick
+Das Tool ist eine Next.js-App, die nur auf dem eigenen PC läuft. Sie besteht aus zwei Teilen:
+- **Oberfläche (Browser):** zeigt die Einstellungsseite, schickt Eingaben an den lokalen Server.
+- **Lokaler Server (Node.js, Teil von Next.js):** darf als einziger auf Ordner und Dateien zugreifen und den API-Schlüssel lesen. Der Browser sieht weder Dateisystem noch Schlüssel.
+
+Dieses Grundgerüst (Einstellungsdatei, Server-Schnittstellen, Seitenrahmen mit Kopfzeile) wird von allen folgenden Features (PROJ-2 bis PROJ-5) wiederverwendet.
+
+### A) Komponenten-Struktur
+
+```
+App-Rahmen (für alle Seiten)
++-- Kopfzeile
+|   +-- App-Name „ScanTool"
+|   +-- Hell/Dunkel-Umschalter
+|   +-- Zahnrad-Symbol → Einstellungen
++-- Benachrichtigungen (Bestätigung „Gespeichert" etc.)
+
+Hauptseite „/" (Inhalt folgt mit PROJ-2 bis PROJ-5)
++-- Zugangsprüfung: Ordner fehlen/ungültig → Weiterleitung zu /einstellungen
++-- Hinweisleiste „API-Schlüssel fehlt – siehe Einstellungen" (falls kein Schlüssel)
++-- Platzhalter für Eingangsliste / Vorschau / Vorschläge
+
+Einstellungsseite „/einstellungen"
++-- Willkommens-Hinweis (nur bei Ersteinrichtung)
++-- Hinweis „Ordner nicht mehr gefunden: [Pfad]" (falls beim Start fehlend)
++-- Karte „Ordner"
+|   +-- Feld „Eingangsordner" + Prüfergebnis darunter
+|   |   (✓ gefunden, 12 PDFs / ✗ nicht gefunden + Knopf „Ordner anlegen" / ✗ kein Zugriff / ✗ kein Ordner)
+|   +-- Feld „Ablage-Stammordner" + Prüfergebnis darunter
+|   +-- Vorschau der Ablagestruktur: „<Ablage>\Rechnungen\2026\…"
+|   +-- Fehlermeldung „identisch / ineinander"
+|   +-- Knopf „Speichern"
++-- Karte „Claude-API"
+    +-- Status: „API-Schlüssel gefunden ✓" oder „✗ Kein API-Schlüssel gefunden …"
+    +-- Knopf „Verbindung testen" (mit Ladezustand) + Ergebnis-Meldung
+    +-- Hinweis „Nach Änderung an .env.local Tool neu starten"
+    +-- Aufklappbare Kurzanleitung „So legst du einen API-Schlüssel an"
+```
+
+Verwendete vorhandene shadcn/ui-Bausteine: Card, Input, Label, Button, Alert, Badge, Collapsible, Separator, Sonner (Benachrichtigungen). Es müssen keine neuen UI-Bausteine installiert werden.
+
+### B) Datenmodell
+
+```
+Einstellungen:
+- Eingangsordner (vollständiger Pfad, Pflicht)
+- Ablage-Stammordner (vollständiger Pfad, Pflicht)
+- Zuletzt gespeichert (Zeitpunkt)
+
+Gespeichert in: einer kleinen Einstellungsdatei im Projektordner
+(z. B. data/settings.json), vom Server gelesen und geschrieben,
+nicht im Git-Repository.
+
+API-Schlüssel:
+- ANTHROPIC_API_KEY in .env.local
+- Wird nur vom Server gelesen; die Oberfläche erfährt nur „vorhanden ja/nein"
+  und das Ergebnis des Verbindungstests.
+
+Prüfergebnis eines Ordners (wird nicht gespeichert, nur angezeigt):
+- Status: gültig / nicht gefunden / kein Ordner / kein Zugriff
+- Anzahl PDFs (nur beim Eingangsordner)
+```
+
+### C) Server-Schnittstellen (in Worten)
+
+| Schnittstelle | Zweck |
+|---------------|-------|
+| Einstellungen lesen | Liefert gespeicherte Pfade, deren aktuellen Prüfstatus und ob ein API-Schlüssel vorhanden ist |
+| Ordner prüfen | Prüft einen einzelnen Pfad (existiert? Ordner? Lese-/Schreibrecht? Anzahl PDFs) – wird beim Eintippen/Einfügen verzögert aufgerufen |
+| Ordner anlegen | Legt einen fehlenden Ordner inkl. übergeordneter Ordner an |
+| Einstellungen speichern | Prüft beide Pfade erneut + „verschieden / nicht ineinander", speichert nur wenn alles gültig |
+| Verbindung testen | Macht einen minimalen Testaufruf an Claude und übersetzt das Ergebnis in eine der vier verständlichen Meldungen |
+
+Alle Eingaben werden auf dem Server mit Zod geprüft (die Oberfläche prüft zusätzlich für schnelles Feedback).
+
+### D) Technische Entscheidungen (Begründung)
+
+- **Einstellungen als Datei auf dem Server statt im Browser-Speicher:** Die Ordnerpfade braucht der Server (er liest/verschiebt die Dateien). Im Browser gespeichert, müsste er sie bei jeder Aktion mitgeschickt bekommen. Eine Datei überlebt auch Browser-Wechsel und Cache-Löschen.
+- **Keine Datenbank:** Zwei Pfade rechtfertigen keine Datenbank; Supabase kommt erst mit PROJ-7.
+- **Server nur auf diesem PC erreichbar (127.0.0.1):** Standardmäßig ist der Next.js-Server auch im Heimnetz erreichbar. Da er Ordner anlegen und später Dateien verschieben kann, wird er auf den eigenen PC beschränkt – andere Geräte im Netz kommen nicht heran. Ersetzt zugleich den fehlenden Login.
+- **Pfadvergleich nach Windows-Regeln:** Pfade werden vor dem Vergleich bereinigt (Anführungszeichen, Leerzeichen, abschliessender Backslash entfernt) und ohne Gross-/Kleinschreibung verglichen, damit „identisch / ineinander" zuverlässig erkannt wird.
+- **Verbindungstest mit dem kleinsten Claude-Modell und minimaler Antwortlänge:** Kostet praktisch nichts (Bruchteil eines Rappens), erkennt aber zuverlässig ungültigen Schlüssel, fehlendes Guthaben und fehlende Verbindung. Ein reines „Modelle auflisten" wäre gratis, erkennt fehlendes Guthaben aber nicht.
+- **Offizielles Anthropic-SDK:** Liefert eindeutige Fehlertypen (abgelehnt, kein Guthaben, nicht erreichbar), die sich direkt den Meldungen aus der Spec zuordnen lassen.
+- **Zugangsprüfung serverseitig beim Seitenaufruf:** Die Hauptseite prüft vor dem Anzeigen, ob gültige Ordner gespeichert sind, und leitet sonst um – kein kurzes Aufblitzen der gesperrten Ansicht.
+- **Kurzanleitung zum API-Schlüssel aufklappbar:** Beantwortet die offene Frage der Spec – hilft bei der Ersteinrichtung, stört danach nicht.
+
+### E) Abhängigkeiten (zu installieren)
+
+| Paket | Zweck |
+|-------|-------|
+| `@anthropic-ai/sdk` | Verbindungstest zu Claude (und später die KI-Analyse in PROJ-4) |
+
+Bereits vorhanden und genutzt: `zod`, `react-hook-form`, `next-themes`, `sonner`, `lucide-react`.
+
+### F) Sonstige Anpassungen
+- Start-Befehl so anpassen, dass der Server nur lokal lauscht
+- `data/` in `.gitignore` aufnehmen
+- `.env.local.example` mit Platzhalter `ANTHROPIC_API_KEY=` anlegen (ohne echten Schlüssel)
+- App-Titel und Sprache (`de`) im Seitenrahmen setzen
 
 ## QA Test Results
 _To be added by /qa_
