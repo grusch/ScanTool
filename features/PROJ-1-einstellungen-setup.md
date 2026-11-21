@@ -104,6 +104,9 @@
 | `@anthropic-ai/sdk` als einzige neue Abhängigkeit | Offizielles SDK mit eindeutigen Fehlertypen; wird in PROJ-4 wiederverwendet | 2026-11-21 |
 | Zugangsprüfung serverseitig beim Seitenaufruf | Gesperrte Hauptansicht blitzt nicht kurz auf | 2026-11-21 |
 | API-Schlüssel nur serverseitig lesen, an Oberfläche nur „vorhanden ja/nein" | Schlüssel darf nie im Browser landen | 2026-11-21 |
+| Host-/Origin-Prüfung auf allen API-Routen (`local-guard.ts`) | 127.0.0.1 allein schützt nicht vor anderen Websites im selben Browser (CSRF, DNS-Rebinding); ersetzt Authentifizierung | 2026-11-21 |
+| Verbindungstest mit `claude-haiku-5-5`, `max_tokens: 1`, Thinking aus, keine Retries | Günstigstes Modell, Ergebnis in < 15 s; Fehler über SDK-Fehlerklassen statt Textvergleich | 2026-11-21 |
+| Schreibrecht per `fs.access` statt Test-Datei | Keine Fremddateien im OneDrive-Eingang erzeugen | 2026-11-21 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
@@ -238,6 +241,36 @@ _Stand 2026-11-21 – /frontend_
 - Fehlermeldung „identisch / ineinander" erscheint direkt am Feld „Ablage-Stammordner" (statt allgemein), damit klar ist, welches Feld zu ändern ist.
 - Zusätzliche Prüfung „vollständiger Pfad" (Laufwerk oder `\\Server\…`) – relative Pfade werden gar nicht erst an den Server geschickt.
 - `npm run lint` ist im Template defekt (`next lint` existiert in Next 16 nicht mehr, `.eslintrc.json` inkompatibel mit ESLint 9) – vorbestehend, nicht Teil von PROJ-1. `npm run build` (inkl. TypeScript) läuft fehlerfrei.
+
+## Implementation Notes (Backend)
+_Stand 2026-11-21 – /backend_
+
+**Keine Datenbank** (laut Tech Design) – Einstellungen in `data/settings.json` (gitignored, Pfad per `SCANTOOL_DATA_DIR` überschreibbar).
+
+**API-Routen** (`src/app/api/settings/`):
+| Route | Zweck | Fehlerfälle |
+|-------|-------|-------------|
+| `GET /api/settings` | gespeicherte Pfade + aktueller Prüfstatus + `apiKeyPresent` | 500 bei Lesefehler |
+| `PUT /api/settings` | Zod-Validierung, Bereinigung, „identisch/ineinander", beide Ordner prüfen, atomar speichern | 400 `validation` / `same_folder` / `nested` / `invalid_folder` (mit `field`) |
+| `POST /api/settings/check-folder` | einzelnen Pfad prüfen, PDFs zählen (Eingang) | 400 bei ungültiger Eingabe/relativem Pfad |
+| `POST /api/settings/create-folder` | Ordner inkl. übergeordneter anlegen | `no_access` bei fehlenden Rechten |
+| `POST /api/settings/test-connection` | 1-Token-Anfrage an `claude-haiku-5-5` (Thinking aus, 15 s Timeout, keine Retries) | `missing_key` / `invalid_key` (401/403) / `no_credit` (402 bzw. 400 „credit balance") / `unreachable` / `unknown` |
+
+**Server-Logik** (`src/lib/server/`): `settings-store.ts` (Datei lesen/schreiben, Temp-Datei + Rename), `folders.ts` (stat/access/readdir), `settings-service.ts` (Status, Speichern, `isConfigured`), `anthropic.ts` (Schlüssel-Check, Verbindungstest, Fehler-Mapping über SDK-Fehlerklassen), `local-guard.ts`, `folder-request.ts`.
+
+**Sicherheit:**
+- Server lauscht nur auf 127.0.0.1 (`npm run dev` / `npm start` mit `-H 127.0.0.1`) – live geprüft: über LAN-IP nicht erreichbar.
+- `local-guard.ts`: jede API-Route akzeptiert nur Host `127.0.0.1`/`localhost`/`[::1]` und Origin von localhost (bzw. keinen Origin); `Sec-Fetch-Site: cross-site` wird abgelehnt → schützt vor CSRF durch andere Websites und DNS-Rebinding (403).
+- API-Schlüssel wird nur serverseitig gelesen; Antworten und Logs enthalten ihn nie (per Test geprüft).
+- Security-Header in `next.config.ts`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`. HSTS bewusst weggelassen (nur http://127.0.0.1).
+
+**Zugangsprüfung:** `src/app/page.tsx` ist dynamisch, prüft serverseitig bei jedem Aufruf und leitet ohne gültige Ordner auf `/einstellungen` um (307, live geprüft); ohne API-Schlüssel erscheint `ApiKeyNotice`.
+
+**Tests:** 42 grün (`npm test`) – 13 Pfad-Unit-Tests, 18 Integrationstests für Einstellungen/Ordner/Guard mit echten Temp-Ordnern, 11 für den Verbindungstest mit gemocktem SDK (keine echten API-Aufrufe). `npm run build` fehlerfrei.
+
+**Abweichungen / offen:**
+- Schreibrecht wird per `fs.access(W_OK)` geprüft – unter Windows erkennt das nur das Schreibschutz-Attribut, nicht alle NTFS-Rechte. Bewusst kein Test-Schreibvorgang, um keine Dateien in den OneDrive-Eingang zu schreiben. Ein echter Rechtefehler würde spätestens beim Ablegen (PROJ-5) gemeldet.
+- `.env.local.example` konnte nicht angelegt werden (Zugriffssperre für `.env*`-Dateien) – muss manuell angelegt werden.
 
 ## QA Test Results
 _To be added by /qa_

@@ -4,9 +4,9 @@
   "description": "AI Coding Starter Kit with AI Agent Team System for Claude Code",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 127.0.0.1",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 127.0.0.1",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -15,6 +15,7 @@
     "test:all": "vitest run && playwright test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.12.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
