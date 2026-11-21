@@ -1,6 +1,6 @@
 # PROJ-1: Einstellungen & Setup
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -209,6 +209,35 @@ Bereits vorhanden und genutzt: `zod`, `react-hook-form`, `next-themes`, `sonner`
 - `data/` in `.gitignore` aufnehmen
 - `.env.local.example` mit Platzhalter `ANTHROPIC_API_KEY=` anlegen (ohne echten Schlüssel)
 - App-Titel und Sprache (`de`) im Seitenrahmen setzen
+
+## Implementation Notes (Frontend)
+_Stand 2026-11-21 – /frontend_
+
+**Gebaut:**
+- App-Rahmen: `src/app/layout.tsx` (Sprache `de`, Titel ScanTool, ThemeProvider, TooltipProvider, Toaster), `src/components/app-header.tsx` (Logo, Hell/Dunkel-Umschalter, Zahnrad → `/einstellungen`), `theme-provider.tsx`, `theme-toggle.tsx`
+- Einstellungsseite `src/app/einstellungen/page.tsx` → `src/components/settings/`:
+  - `settings-view.tsx` – lädt Status, Lade-/Fehlerzustand, Willkommens-Hinweis, „Ordner nicht mehr gefunden"-Hinweise, Knopf „Zur Hauptansicht" sobald alles gültig
+  - `folder-settings-card.tsx` – Formular (react-hook-form + Zod), Prüfung Pflichtfeld / absoluter Pfad / identisch / ineinander, Vorschau `<Ablage>\Rechnungen\JJJJ\`, Speichern mit Toast
+  - `folder-path-field.tsx` – Pfadfeld mit verzögerter Live-Prüfung (400 ms) und Knopf „Ordner anlegen"
+  - `api-settings-card.tsx` – Schlüssel-Status, „Verbindung testen" mit Ladezustand und den vier Fehlermeldungen
+  - `api-key-guide.tsx` – aufklappbare Kurzanleitung (bei fehlendem Schlüssel automatisch offen)
+- `src/components/api-key-notice.tsx` – Hinweisleiste für die Hauptansicht (Einbindung im Backend)
+- Hauptseite `src/app/page.tsx` – Platzhalter „Eingang" (Inhalt folgt mit PROJ-2 bis PROJ-5)
+- Gemeinsame Grundlagen (auch vom Backend genutzt):
+  - `src/lib/settings-types.ts` – API-Vertrag (Request/Response-Typen, Status- und Fehlercodes)
+  - `src/lib/paths.ts` + `paths.test.ts` – Pfad-Bereinigung und Vergleich nach Windows-Regeln (13 Tests grün)
+  - `src/lib/settings-messages.ts` – alle deutschen Meldungstexte aus der Spec
+  - `src/lib/settings-api.ts` – Browser-Client für die API
+  - `src/hooks/use-folder-check.ts` – verzögerte Ordnerprüfung
+
+**Erwartete API-Routen (Backend):** `GET /api/settings`, `PUT /api/settings`, `POST /api/settings/check-folder`, `POST /api/settings/create-folder`, `POST /api/settings/test-connection` – Formate siehe `settings-types.ts`.
+
+**Noch offen fürs Backend:** serverseitige Zugangsprüfung auf `/` (Umleitung + `ApiKeyNotice`), Start-Befehl auf 127.0.0.1, `data/` in `.gitignore`, `.env.local.example`.
+
+**Abweichungen / Hinweise:**
+- Fehlermeldung „identisch / ineinander" erscheint direkt am Feld „Ablage-Stammordner" (statt allgemein), damit klar ist, welches Feld zu ändern ist.
+- Zusätzliche Prüfung „vollständiger Pfad" (Laufwerk oder `\\Server\…`) – relative Pfade werden gar nicht erst an den Server geschickt.
+- `npm run lint` ist im Template defekt (`next lint` existiert in Next 16 nicht mehr, `.eslintrc.json` inkompatibel mit ESLint 9) – vorbestehend, nicht Teil von PROJ-1. `npm run build` (inkl. TypeScript) läuft fehlerfrei.
 
 ## QA Test Results
 _To be added by /qa_
