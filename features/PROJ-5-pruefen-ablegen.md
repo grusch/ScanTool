@@ -1,6 +1,6 @@
 # PROJ-5: Prüfen & Ablegen
 
-## Status: Deployed
+## Status: Architected
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -14,6 +14,7 @@
 - Als Nutzer möchte ich den vorgeschlagenen Dateinamen direkt in einem Eingabefeld sehen und überschreiben können, damit ich den Namen ohne Umweg über die Einzelfelder anpassen kann.
 - Als Nutzer möchte ich eine Rechnung oder einen Garantieschein mit einem Klick auf „Rechnung“ umbenannt in `Rechnungen\JJJJ\` meiner Ablage verschieben, damit der Eingang leer wird und das Archiv geordnet bleibt.
 - Als Nutzer möchte ich andere Dokumente (Briefe, Mitteilungen, Verträge) mit „Scan“ aus dem Eingang in einen Unterordner `Abgelegt` verschieben, damit nichts verloren geht und der Eingang trotzdem leer wird.
+- Als Nutzer möchte ich Fehlscans und unbrauchbare Seiten mit „Löschen“ aus dem Eingang entfernen, ohne sie abzulegen. Sie landen in `Scanner\Papierkorb`, damit ein Fehlklick nie zu Datenverlust führt.
 - Als Nutzer möchte ich, dass danach automatisch der nächste Scan erscheint, damit ich den Stapel zügig abarbeite.
 - Als Nutzer möchte ich ein versehentliches Ablegen kurz rückgängig machen können, weil es keine Rückfrage gibt.
 - Als Nutzer möchte ich, dass bei Namenskonflikten oder Fehlern nie eine Datei überschrieben wird oder verloren geht.
@@ -27,7 +28,8 @@
 - Jahres- oder Themen-Unterordner in `Scanner\Abgelegt\`
 - Rückgängig nach Ablauf der Meldung (ca. 8 s) bzw. nach Neustart – danach nur über Explorer/OneDrive
 - Mehrfachauswahl / Stapel-Ablegen mehrerer Scans auf einmal
-- Löschen von Fehlscans ohne Ablage
+- Endgültiges Löschen von der NAS bzw. automatisches Leeren von `Scanner\Papierkorb`. Der Papierkorb wird bei Bedarf von Hand im Explorer geleert.
+- Wiederherstellen aus dem Papierkorb nach Ablauf der Meldung, nur über den Explorer
 - PDF verändern (drehen, zusammenfügen, trennen) – laut PRD Nicht-Ziel
 - Bestätigungsdialog vor dem Ablegen
 
@@ -36,7 +38,7 @@
 **Format:** Angenommen [Vorbedingung] / Wenn [Aktion] / Dann [Ergebnis]
 
 ### Dateiname-Feld
-- [ ] Angenommen ein Scan ist ausgewählt, wenn die rechte Spalte angezeigt wird, dann steht unter den Feldern ein Eingabefeld „Dateiname" mit dem aus Datum, Lieferant, Beschreibung und Dokumenttyp gebildeten Namen (Regel aus PROJ-4), daneben die Knöpfe „Rechnung" und „Scan"
+- [ ] Angenommen ein Scan ist ausgewählt, wenn die rechte Spalte angezeigt wird, dann steht unter den Feldern ein Eingabefeld „Dateiname" mit dem aus Datum, Lieferant, Beschreibung und Dokumenttyp gebildeten Namen (Regel aus PROJ-4), daneben die Knöpfe „Rechnung" und „Scan" sowie abgesetzt der Knopf „Löschen"
 - [ ] Angenommen der Nutzer hat den Dateinamen nicht selbst geändert, wenn er Datum, Lieferant, Beschreibung oder Dokumenttyp ändert, dann passt sich der Dateiname sofort an
 - [ ] Angenommen der Nutzer hat den Dateinamen selbst geändert, wenn er danach ein Einzelfeld ändert, dann bleibt sein Dateiname stehen und ein Knopf „Aus Feldern übernehmen" erscheint
 - [ ] Angenommen der Dateiname wurde selbst geändert, wenn der Nutzer „Aus Feldern übernehmen" klickt, dann wird der Name wieder aus den Feldern gebildet und folgt ihnen wieder
@@ -55,6 +57,15 @@
 - [ ] Angenommen ein Scan ist ausgewählt, wenn der Nutzer „Scan" klickt, dann wird er ohne Rückfrage nach `<Eingang>\Abgelegt\` verschoben – unter dem Namen aus dem Dateiname-Feld, falls dieser gültig ist, sonst unter seinem Originalnamen
 - [ ] Angenommen der Ordner `Abgelegt` existiert noch nicht, wenn mit „Scan" abgelegt wird, dann wird er automatisch angelegt
 - [ ] Angenommen ein Scan wurde mit „Scan" abgelegt, wenn die Eingangsliste aktualisiert wird, dann erscheint er dort nicht mehr (Unterordner werden nicht gelistet)
+
+### Knopf „Löschen"
+- [ ] Angenommen ein Scan ist ausgewählt, wenn der Nutzer „Löschen" klickt, dann wird er ohne Rückfrage unter seinem **Originalnamen** nach `<Eingang>\Papierkorb\` verschoben, unabhängig vom Dateiname-Feld und von den Feldern
+- [ ] Angenommen das Dateiname-Feld ist leer oder ungültig bzw. das Datum fehlt, wenn die Knöpfe angezeigt werden, dann ist „Löschen" trotzdem aktiv
+- [ ] Angenommen der Ordner `Papierkorb` existiert noch nicht, wenn gelöscht wird, dann wird er automatisch angelegt
+- [ ] Angenommen ein Scan wurde gelöscht, wenn die Eingangsliste aktualisiert wird, dann erscheint er dort nicht mehr (Unterordner werden nicht gelistet). ScanTool löscht nie endgültig.
+- [ ] Angenommen in `Papierkorb` liegt schon eine andere Datei mit dem Originalnamen, wenn gelöscht wird, dann wird nicht überschrieben, sondern eine Nummer angehängt (`Scan_0012_2.pdf`); bei inhaltlich identischer Datei wird nur der Eingang bereinigt
+- [ ] Angenommen ein Scan wurde gelöscht, dann gelten die Regeln aus „Nach dem Ablegen": nächster Scan wird ausgewählt, Meldung ca. 8 s „In den Papierkorb verschoben: Scan_0012.pdf" mit „Rückgängig", Sperre gegen Doppelauslösung
+- [ ] Angenommen der Eingangsordner (NAS) ist nicht erreichbar oder der Scan ist verschwunden, wenn gelöscht wird, dann gelten dieselben Meldungen wie beim Ablegen und nichts wird verändert
 
 ### Nach dem Ablegen
 - [ ] Angenommen ein Scan wurde abgelegt, wenn das Ablegen fertig ist, dann verschwindet er sofort aus der Liste und der nächste Scan wird ausgewählt (bzw. der vorherige, falls es der letzte war – Regel aus PROJ-2); Vorschau und KI-Analyse starten für ihn
@@ -75,13 +86,14 @@
 - [ ] Angenommen im Ziel fehlen Schreibrechte oder Speicherplatz, wenn abgelegt wird, dann erscheint eine verständliche Meldung, und es wird nichts gelöscht; eine halb geschriebene Kopie wird entfernt
 
 ### Tastatur
-- [ ] Angenommen der Fokus ist irgendwo in der Hauptansicht (auch in einem Eingabefeld), wenn der Nutzer Strg + Enter drückt, dann wirkt das wie ein Klick auf „Rechnung" – Strg + Umschalt + Enter wie „Scan"
+- [ ] Angenommen der Fokus ist irgendwo in der Hauptansicht (auch in einem Eingabefeld), wenn der Nutzer Strg + Enter drückt, dann wirkt das wie ein Klick auf „Rechnung" – Strg + Umschalt + Enter wie „Scan", Strg + Entf wie „Löschen"
 - [ ] Angenommen der jeweilige Knopf ist deaktiviert, wenn das Tastenkürzel gedrückt wird, dann wird nicht abgelegt, sondern kurz der Grund angezeigt
 - [ ] Angenommen der Mauszeiger ist über einem Knopf, dann zeigt der Tooltip das Tastenkürzel
 
 ### Darstellung
-- [ ] Angenommen das Fenster ist schmal (unter ca. 1024 px), wenn die rechte Spalte angezeigt wird, dann sind Dateiname-Feld und beide Knöpfe vollständig sichtbar und bedienbar, ohne seitliches Scrollen
+- [ ] Angenommen das Fenster ist schmal (unter ca. 1024 px), wenn die rechte Spalte angezeigt wird, dann sind Dateiname-Feld und alle drei Knöpfe vollständig sichtbar und bedienbar, ohne seitliches Scrollen
 - [ ] Angenommen kein Scan ist ausgewählt, dann sind Dateiname-Feld und Knöpfe nicht sichtbar („Kein Scan ausgewählt" wie bisher)
+- [ ] Angenommen die Knöpfe werden angezeigt, dann ist „Löschen" rot (destruktiv) und sichtbar von „Rechnung" und „Scan" abgerückt, damit er nicht versehentlich getroffen wird
 
 ## Edge Cases
 - **Zwei Rechnungen mit gleichem Namen am selben Tag** → `_2`, `_3` … (nie überschreiben).
@@ -94,12 +106,14 @@
 - **NAS bricht während des Kopierens ab** → Original bleibt im Eingang, halbe Kopie wird entfernt bzw. nicht als „abgelegt" gewertet.
 - **OneDrive „Dateien bei Bedarf"**: Zielordner ist lokal synchronisiert; Schreiben erfolgt lokal, OneDrive lädt später hoch – kein Warten auf den Upload.
 - **Sehr schnelles Ablegen hintereinander** (Strg + Enter mehrfach) → jeder Scan wird nur einmal abgelegt; Tastendruck während eines laufenden Ablegens wird ignoriert.
+- **Strg + Entf in einem Eingabefeld** → löscht den Scan (nicht das Wort im Feld). Bewusst so, gleiches Muster wie Strg + Enter; der Fehlklick ist über „Rückgängig" bzw. den Papierkorb behebbar.
+- **„Löschen" während die KI-Analyse läuft** → möglich; die Analyse des gelöschten Scans wird verworfen (wie beim Ablegen).
 - **KI-Analyse läuft noch** → Ablegen ist trotzdem möglich, sobald der Dateiname gültig ist (z. B. selbst eingegeben).
 
 ## Technical Requirements (optional)
 - **Datensicherheit:** Nie überschreiben; Original erst nach geprüfter Kopie löschen; im Zweifel doppelt statt verloren.
 - **Performance:** Ablegen eines üblichen Scans (einige MB) von der NAS in OneDrive in < 3 s; nächster Scan erscheint direkt danach.
-- **Sicherheit:** Nur Dateien aus dem konfigurierten Eingang; Ziele ausschliesslich `<Ablage>\Rechnungen\<Jahr>\` bzw. `<Eingang>\Abgelegt\` – der Dateiname darf keinen Pfad enthalten (kein Ausbrechen per `..\`). Nur lokale Anfragen (wie PROJ-1 bis PROJ-4).
+- **Sicherheit:** Nur Dateien aus dem konfigurierten Eingang; Ziele ausschliesslich `<Ablage>\Rechnungen\<Jahr>\` bzw. `<Eingang>\Abgelegt\` bzw. `<Eingang>\Papierkorb\` – der Dateiname darf keinen Pfad enthalten (kein Ausbrechen per `..\`). Nur lokale Anfragen (wie PROJ-1 bis PROJ-4).
 - **Browser:** Chrome, Edge, Firefox, Safari (aktuelle Versionen).
 
 ## Open Questions
@@ -123,6 +137,9 @@
 | Fehlende Ziel-/Jahresordner werden automatisch angelegt | Kein manueller Schritt zum Jahreswechsel | 2026-11-21 |
 | Nach dem Ablegen automatisch nächster Scan (Regel aus PROJ-2) | Flüssiges Abarbeiten des Stapels | 2026-11-21 |
 | Tastenkürzel Strg + Enter (Rechnung), Strg + Umschalt + Enter (Scan), auch aus Eingabefeldern | Schneller ohne Maus; vom Nutzer bestätigt | 2026-11-21 |
+| Dritter Knopf „Löschen" (Refine): verschiebt nach `<Eingang>\Papierkorb\` statt endgültig zu löschen | Löschen auf der NAS-Freigabe umgeht den Windows-Papierkorb und wäre endgültig; vom Nutzer so gewünscht | 2026-11-21 |
+| „Löschen" behält den Originalnamen und ist immer aktiv | Fehlscans brauchen keinen sprechenden Namen; darf nie an einem leeren/ungültigen Dateinamen scheitern | 2026-11-21 |
+| „Löschen" rot und abgesetzt, Kürzel Strg + Entf, keine Rückfrage, dafür „Rückgängig" | Gleicher Arbeitsfluss wie beim Ablegen; optische Trennung gegen Fehlklicks | 2026-11-21 |
 
 ### Technical Decisions
 | Decision | Rationale | Date |
@@ -136,6 +153,7 @@
 | Eigener Dateiname je Scan im bestehenden Entwurfs-Speicher der Arbeitsfläche (PROJ-4) | Gleiches Verhalten wie die übrigen Felder beim Scan-Wechsel | 2026-11-21 |
 | Ergebnis- und Rückgängig-Meldung über sonner-Toast (bereits installiert) | Kein neues Paket; nicht blockierend | 2026-11-21 |
 | Tastenkürzel zentral in der Arbeitsfläche, gesperrt während eines laufenden Ablegens | Funktioniert aus allen Feldern; kein doppeltes Ablegen | 2026-11-21 |
+| „Löschen" = drittes Ziel `papierkorb` der bestehenden Schnittstelle „Scan ablegen" (wie „Scan": gleiches Laufwerk, Umbenennen, Konflikt-Nummer, Rückgängig-Kennung); Dateiname wird serverseitig ignoriert | Keine neue Schnittstelle, gesamte Sicherheits- und Rückgängig-Logik wiederverwendet | 2026-11-21 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
@@ -162,7 +180,7 @@ Rechte Spalte „Vorschläge“ (PROJ-4)
 |   |   +-- Hinweis darunter: was fehlt / was ungültig ist (z. B. „Unerlaubtes Zeichen: /“)
 |   |   +-- Knopf „Aus Feldern übernehmen“ (nur sichtbar, wenn selbst geändert)
 |   +-- Zielanzeige klein: „→ Rechnungen\2026\“ bzw. „→ Scanner\Abgelegt\“
-|   +-- [Rechnung] (Haupt-Knopf)   [Scan] (Neben-Knopf)
+|   +-- [Rechnung] (Haupt-Knopf)   [Scan] (Neben-Knopf)   ···   [Löschen] (rot, abgesetzt)
 |       - Ladezustand während des Ablegens, beide gesperrt
 |       - Tooltip: Kürzel bzw. Grund, warum deaktiviert
 +-- Vermerk „bereits abgelegt – Original noch im Eingang“ (nur in diesem Sonderfall)
@@ -186,7 +204,7 @@ Nur im Browser (flüchtig, je Scan, wie die eigenen Eingaben aus PROJ-4):
 
 Ablege-Auftrag (Browser → Server):
 - Scan (Dateiname im Eingang – nur der Name, kein Pfad)
-- Ziel: „Rechnung“ oder „Scan“
+- Ziel: „Rechnung“, „Scan“ oder „Papierkorb“ (Papierkorb: Originalname, Dateiname wird ignoriert)
 - neuer Dateiname (nur der Name, kein Pfad)
 - Jahr (nur bei „Rechnung“, aus dem Datumsfeld)
 
