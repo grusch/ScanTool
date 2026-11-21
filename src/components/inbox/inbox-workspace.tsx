@@ -66,13 +66,14 @@ export function InboxWorkspace({ initialInbox, apiKeyPresent }: InboxWorkspacePr
           <InboxList state={state} selected={selected} onSelect={setSelected} onMove={onMove} />
         </CardContent>
       </Card>
-      <PdfPreview selected={selected} onScanMissing={state.refresh} />
+      <PdfPreview selected={selected} onScanMissing={state.refresh} listCheckedAt={state.inbox?.checkedAt} />
       <SuggestionsPanel
         file={selectedFile}
         apiKeyPresent={apiKeyPresent}
         touched={drafts[draftKey] ?? {}}
         onChange={onFieldChange}
         onScanMissing={state.refresh}
+        listCheckedAt={state.inbox?.checkedAt}
       />
     </div>
   )

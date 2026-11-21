@@ -61,6 +61,14 @@ describe("GET /api/inbox", () => {
     expect(new Date(body.files[0].modifiedAt).getTime()).toBeLessThan(Date.now() - 59 * 60_000)
   })
 
+  it("reports the earlier of creation and modification time as fileDate (PROJ-4 date fallback)", async () => {
+    await scan("a.pdf", 60)
+    const body = await list()
+    const file = body.files[0]
+    expect(typeof file.fileDate).toBe("string")
+    expect(new Date(file.fileDate).getTime()).toBeLessThanOrEqual(new Date(file.modifiedAt).getTime())
+  })
+
   it("ignores subfolders, other file types, hidden and temporary files", async () => {
     await scan("ok.pdf", 10)
     await scan("bild.jpg", 10)

@@ -20,6 +20,12 @@ async function scan(name: string, ageMin: number) {
   await fs.utimes(p, t, t)
 }
 
+/** TT.MM.JJJJ of a timestamp in local time */
+const swissDate = (ms: number) => {
+  const d = new Date(ms)
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`
+}
+
 const panel = (page: Page, name: string) => page.getByLabel(`Vorschläge: ${name}`)
 const fileName = (page: Page) => page.getByTestId('file-name-preview')
 
@@ -57,7 +63,10 @@ test.describe('PROJ-4 ohne API-Schlüssel', () => {
     await expect(p.getByText('KI-Analyse nicht verfügbar – API-Schlüssel in den Einstellungen hinterlegen.')).toBeVisible()
     await expect(p.getByRole('link', { name: 'Zu den Einstellungen' })).toHaveAttribute('href', '/einstellungen')
     await expect(p.getByRole('button', { name: 'Neu analysieren' })).toBeDisabled()
-    for (const label of ['Datum', 'Rechnungsnummer', 'Lieferant', 'Beschreibung', 'Betrag', 'Währung', 'Garantie (Monate)']) {
+    // Date from the file properties (earlier of created/modified) – the scan was modified 10 min ago
+    await expect(p.getByLabel('Datum', { exact: true })).toHaveValue(swissDate(Date.now() - 10 * 60_000))
+    await expect(p.getByText('Datum aus Datei-Eigenschaften')).toBeVisible()
+    for (const label of ['Rechnungsnummer', 'Lieferant', 'Beschreibung', 'Betrag', 'Währung', 'Garantie (Monate)']) {
       await expect(p.getByLabel(label, { exact: true })).toHaveValue('')
       await expect(p.getByLabel(label, { exact: true })).toBeEditable()
     }
@@ -71,7 +80,7 @@ test.describe('PROJ-4 Dateiname-Vorschau', () => {
     await scan('rechnung.pdf', 10)
     await open(page)
     const p = panel(page, 'rechnung.pdf')
-    await expect(fileName(page)).toHaveText('Datum fehlt · Lieferant fehlt · Beschreibung fehlt')
+    await expect(fileName(page)).toHaveText('Lieferant fehlt · Beschreibung fehlt')
     await p.getByLabel('Datum', { exact: true }).fill('21.11.2026')
     await p.getByLabel('Lieferant', { exact: true }).fill('Müller & Söhne')
     await p.getByLabel('Beschreibung', { exact: true }).fill('Kühlschrank A/B_C')

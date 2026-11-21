@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import { AlertCircle, FileText, Info, Loader2, RefreshCw, Sparkles } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -19,6 +19,7 @@ import {
   buildFileName,
   fieldsFromSuggestion,
   mergeFields,
+  withFileDateFallback,
   type FieldName,
   type SuggestionFields,
 } from "@/lib/suggestion-form"
@@ -32,6 +33,8 @@ interface SuggestionsPanelProps {
   onChange: (field: FieldName, value: string) => void
   /** Scan vanished → refresh the list (selection moves on, PROJ-2 rules) */
   onScanMissing: () => void
+  /** Time of the last successful list refresh – a still-listed scan is analysed again */
+  listCheckedAt?: string
 }
 
 const NO_DOC_TYPE = "none"
@@ -46,19 +49,37 @@ function Field({ id, label, children, className }: { id: string; label: string; 
 }
 
 /** Right column of the work area: AI suggestions as editable fields (PROJ-4) */
-export function SuggestionsPanel({ file, apiKeyPresent, touched, onChange, onScanMissing }: SuggestionsPanelProps) {
+export function SuggestionsPanel({ file, apiKeyPresent, touched, onChange, onScanMissing, listCheckedAt }: SuggestionsPanelProps) {
   const { state, reanalyze, retry } = useScanAnalysis(file, apiKeyPresent)
 
   const result = state.status === "done" ? state.result : state.status === "idle" ? null : state.previous
-  const aiFields = useMemo(() => fieldsFromSuggestion(result?.suggestion), [result])
-  const values = mergeFields(aiFields, touched)
-  const fileName = buildFileName(values)
   const loading = state.status === "loading"
+  // No invoice date from the AI (or no AI at all) → date from the file properties.
+  // Not while the analysis runs, so the field does not jump from file date to invoice date.
+  const { fields: aiFields, dateFromFile } = useMemo(() => {
+    const fromAi = fieldsFromSuggestion(result?.suggestion)
+    return loading ? { fields: fromAi, dateFromFile: false } : withFileDateFallback(fromAi, file?.fileDate)
+  }, [result, loading, file?.fileDate])
+  const values = mergeFields(aiFields, touched)
+  const showFileDateHint = dateFromFile && touched.date === undefined
+  const fileName = buildFileName(values)
   const error = state.status === "error" ? state.error : null
 
+  // Scan gone → refresh the list once; if it is still listed afterwards, ask again
+  const reportedMissing = useRef<string | null>(null)
   useEffect(() => {
-    if (error === "not_found") onScanMissing()
-  }, [error, file?.name, onScanMissing])
+    if (state.status === "done") reportedMissing.current = null
+    if (error === "not_found" && file && reportedMissing.current !== file.name) {
+      reportedMissing.current = file.name
+      onScanMissing()
+    }
+  }, [error, state.status, file, onScanMissing])
+  const lastError = useRef(error)
+  lastError.current = error
+  useEffect(() => {
+    if (lastError.current === "not_found") retry()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listCheckedAt])
 
   if (!file) {
     return (
@@ -160,28 +181,40 @@ export function SuggestionsPanel({ file, apiKeyPresent, touched, onChange, onSca
             </Select>
           </Field>
           <Field id={id("date")} label="Datum" className="col-span-2 space-y-1.5 sm:col-span-1 lg:col-span-2 xl:col-span-1">
-            <Input id={id("date")} value={values.date} onChange={set("date")} placeholder="TT.MM.JJJJ" inputMode="numeric" autoComplete="off" />
+            <Input
+              id={id("date")}
+              value={values.date}
+              onChange={set("date")}
+              placeholder="TT.MM.JJJJ"
+              inputMode="numeric"
+              autoComplete="off"
+              aria-describedby={showFileDateHint ? id("date") + "-hint" : undefined}
+            />
+            {showFileDateHint && (
+              <p id={id("date") + "-hint"} className="text-xs text-muted-foreground">
+                Datum aus Datei-Eigenschaften
+              </p>
+            )}
           </Field>
           <Field id={id("invoiceNumber")} label="Rechnungsnummer" className="col-span-2 space-y-1.5 sm:col-span-1 lg:col-span-2 xl:col-span-1">
             <Input id={id("invoiceNumber")} value={values.invoiceNumber} onChange={set("invoiceNumber")} autoComplete="off" />
           </Field>
           <Field id={id("supplier")} label="Lieferant" className="col-span-2 space-y-1.5">
-            <Input id={id("supplier")} value={values.supplier} onChange={set("supplier")} placeholder="z. B. Digitec" autoComplete="off" />
+            <Input id={id("supplier")} value={values.supplier} onChange={set("supplier")} autoComplete="off" />
           </Field>
           <Field id={id("description")} label="Beschreibung" className="col-span-2 space-y-1.5">
             <Input
               id={id("description")}
               value={values.description}
               onChange={set("description")}
-              placeholder="z. B. Monitor Dell U2724D"
               autoComplete="off"
             />
           </Field>
           <Field id={id("amount")} label="Betrag" className="space-y-1.5">
-            <Input id={id("amount")} value={values.amount} onChange={set("amount")} placeholder="0.00" inputMode="decimal" autoComplete="off" />
+            <Input id={id("amount")} value={values.amount} onChange={set("amount")} inputMode="decimal" autoComplete="off" />
           </Field>
           <Field id={id("currency")} label="Währung" className="space-y-1.5">
-            <Input id={id("currency")} value={values.currency} onChange={set("currency")} placeholder="CHF" maxLength={3} autoComplete="off" />
+            <Input id={id("currency")} value={values.currency} onChange={set("currency")} maxLength={3} autoComplete="off" />
           </Field>
           <Field id={id("warrantyMonths")} label="Garantie (Monate)" className="col-span-2 space-y-1.5">
             <Input

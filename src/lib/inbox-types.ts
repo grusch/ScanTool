@@ -8,6 +8,11 @@ export interface InboxFile {
   size: number
   /** Last modification time (ISO) = scan date */
   modifiedAt: string
+  /**
+   * Date from the file properties (ISO): the earlier of creation and modification time.
+   * Fallback for the date field when the AI finds no invoice date (PROJ-4).
+   */
+  fileDate?: string
 }
 
 export interface InboxResponse {

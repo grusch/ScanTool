@@ -122,3 +122,23 @@ describe("fieldsFromSuggestion / mergeFields", () => {
     expect(merged.date).toBe("21.11.2026")
   })
 })
+
+describe("withFileDateFallback (Datum aus Datei-Eigenschaften)", () => {
+  it("uses the file date when the AI found no invoice date", async () => {
+    const { withFileDateFallback, isoToSwissDate } = await import("./suggestion-form")
+    const local = new Date(2026, 10, 13, 23, 44) // 13.11.2026 local time
+    expect(isoToSwissDate(local.toISOString())).toBe("13.11.2026")
+    const r = withFileDateFallback(EMPTY_FIELDS, local.toISOString())
+    expect(r).toEqual({ fields: { ...EMPTY_FIELDS, date: "13.11.2026" }, dateFromFile: true })
+  })
+  it("keeps the invoice date from the AI", async () => {
+    const { withFileDateFallback } = await import("./suggestion-form")
+    const ai = { ...EMPTY_FIELDS, date: "02.11.2026" }
+    expect(withFileDateFallback(ai, new Date(2026, 10, 13).toISOString())).toEqual({ fields: ai, dateFromFile: false })
+  })
+  it("does nothing without a usable file date", async () => {
+    const { withFileDateFallback } = await import("./suggestion-form")
+    expect(withFileDateFallback(EMPTY_FIELDS, undefined).dateFromFile).toBe(false)
+    expect(withFileDateFallback(EMPTY_FIELDS, "kein datum").dateFromFile).toBe(false)
+  })
+})

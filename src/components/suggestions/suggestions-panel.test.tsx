@@ -51,7 +51,8 @@ const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const res = await new Promise<AnalyzeResponse>((resolve) => (pending[body.name] ??= []).push(resolve))
     return { ok: res.ok, status: 200, json: async () => res } as Response
   }
-  return { ok: true, status: 200, json: async () => inbox("a.pdf", "b.pdf") } as Response
+  // Like the server: every listing carries a new timestamp
+  return { ok: true, status: 200, json: async () => ({ ...inbox("a.pdf", "b.pdf"), checkedAt: new Date().toISOString() }) } as Response
 })
 
 async function answer(name: string, res: AnalyzeResponse) {
@@ -207,6 +208,53 @@ describe("Vorschläge (PROJ-4)", () => {
     await screen.findByText("Von KI vorgeschlagen")
     expect(field("Lieferant").value).toBe('<img src=x onerror="alert(1)">')
     expect(document.querySelector("img[src='x']")).toBeNull()
+  })
+
+  it("uses the date from the file properties when the AI found no invoice date – with hint", async () => {
+    const list = inbox("a.pdf")
+    list.files[0].fileDate = new Date(2026, 10, 13, 23, 44).toISOString()
+    renderWorkspace(true, list)
+    await screen.findByText("KI analysiert …")
+    expect(field("Datum").value).toBe("") // no jumping while the analysis runs
+    await answer("a.pdf", ok({ date: null }))
+    await waitFor(() => expect(field("Datum").value).toBe("13.11.2026"))
+    expect(screen.getByText("Datum aus Datei-Eigenschaften")).toBeInTheDocument()
+    expect(fileName()).toBe("261113_Elektra-Gaiserwald_Strom-E-Mobility.pdf")
+    fireEvent.change(field("Datum"), { target: { value: "01.11.2026" } })
+    expect(screen.queryByText("Datum aus Datei-Eigenschaften")).toBeNull()
+  })
+
+  it("prefers the invoice date from the AI over the file date", async () => {
+    const list = inbox("a.pdf")
+    list.files[0].fileDate = new Date(2026, 10, 13).toISOString()
+    renderWorkspace(true, list)
+    await answer("a.pdf", ok())
+    await waitFor(() => expect(field("Datum").value).toBe("02.11.2026"))
+    expect(screen.queryByText("Datum aus Datei-Eigenschaften")).toBeNull()
+  })
+
+  it("uses the file date also without API key", async () => {
+    const list = inbox("a.pdf")
+    list.files[0].fileDate = new Date(2026, 10, 13).toISOString()
+    renderWorkspace(false, list)
+    await waitFor(() => expect(field("Datum").value).toBe("13.11.2026"))
+    expect(screen.getByText("Datum aus Datei-Eigenschaften")).toBeInTheDocument()
+  })
+
+  it("asks again after a list refresh when the scan is still listed (no endless loop)", async () => {
+    renderWorkspace()
+    await answer("a.pdf", { ok: false, code: "not_found" })
+    // list refresh was triggered once; it still lists a.pdf → analysis is requested again
+    await answer("a.pdf", ok())
+    await waitFor(() => expect(field("Lieferant").value).toBe("Elektra Gaiserwald"))
+    expect(fetchMock.mock.calls.filter(([u]) => u === "/api/inbox")).toHaveLength(1)
+  })
+
+  it("has no example placeholders that look like values (BUG-3)", async () => {
+    renderWorkspace(false)
+    for (const label of ["Lieferant", "Beschreibung", "Betrag", "Währung"]) {
+      expect(field(label).getAttribute("placeholder")).toBeNull()
+    }
   })
 
   it("shows „Kein Scan ausgewählt“ for an empty inbox", () => {

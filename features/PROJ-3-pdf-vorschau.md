@@ -263,6 +263,10 @@ Bereits angezeigte Seiten bleiben sichtbar, wenn das NAS danach wegfällt. Ein F
 - Geprüft im Dev-Server mit simulierter Server-Antwort und echtem 2-seitigem Scan vom NAS: Anzeige, Seitenzähler, Zoom (80 % → 100 % per Strg + Mausrad), Ganze Seite, Drehen, 375 px ohne seitliches Scrollen, Fehlerzustände (beschädigt, nicht erreichbar, nicht mehr da → Liste aktualisiert).
 - Ergänzt mit dem Backend: Fehlergrund „kein Zugriff" (Windows-Berechtigung) mit eigener Meldung und „Erneut versuchen".
 
+**Fix nach Deployment (2026-11-21):** Schwarz-Weiss-Scans (CCITT/JBIG2) blieben weiss – PDF.js-Hilfsdateien (`wasmUrl` u. a.) werden jetzt aus `pdfjs-dist` nach `public/pdfjs/` kopiert (`scripts/copy-pdfjs-assets.mjs`, bei install/dev/build) und lokal ausgeliefert.
+
+**Fix BUG-1 (2026-11-21):** `PdfPreview` erhält den Zeitpunkt der letzten Listen-Aktualisierung (`listCheckedAt`) und lädt einen „nicht mehr da"-Scan danach erneut; „nicht mehr da" löst die Listen-Aktualisierung nur einmal pro Scan aus.
+
 **Änderung nach Deployment (2026-11-21):** Standard-Zoom beim Öffnen ist jetzt „Ganze Seite" (Nutzerwunsch). E2E-Tests AC7 (neu: Start „Ganze Seite" + AC7b „Breite anpassen"), AC9, AC10, AC12 und Querformat-Edge-Case angepasst.
 
 ## Implementation Notes (Backend)
@@ -343,7 +347,7 @@ Bereits angezeigte Seiten bleiben sichtbar, wenn das NAS danach wegfällt. Ein F
 - [x] Gleichen Scan erneut wählen / Liste aktualisieren → kein Neuladen, Zoom bleibt
 - [x] Ersetzte Datei mit gleichem Namen zeigt neuen Inhalt
 - [x] Sehr grosser Scan: nur sichtbare Seiten werden gezeichnet
-- [ ] **BUG-1:** Server meldet einmal „nicht mehr da", Scan bleibt aber in der Liste → Vorschau bleibt dauerhaft bei der Meldung
+- [x] Server meldet einmal „nicht mehr da", Scan bleibt aber in der Liste → Vorschau lädt nach der Aktualisierung neu (BUG-1 behoben)
 - [ ] Datei verschwindet während der Anzeige → nur indirekt geprüft (AC25); angezeigte Seiten bleiben bis zur nächsten Aktualisierung (wie in der Spec erlaubt)
 
 ### Responsive
@@ -372,6 +376,7 @@ Bereits angezeigte Seiten bleiben sichtbar, wenn das NAS danach wegfällt. Ein F
 - **Ursache (Hinweis):** `useScanFile` lädt nur bei Wechsel von Name/`reloadKey` neu; nach der ausgelösten Listen-Aktualisierung bleibt die Auswahl gleich → kein neuer Versuch.
 - **Vorschlag:** Nach „nicht mehr da" und anschliessender Aktualisierung, in der der Scan noch vorkommt, automatisch neu laden – oder zusätzlich „Erneut versuchen" anbieten.
 - **Priority:** Vor PROJ-5 beheben (Nutzer ist real darauf gestossen). E2E-Test (EC „Server meldet nicht mehr da …") prüft ihn bereits.
+- **Status: BEHOBEN (2026-11-21).** Die Vorschau meldet „nicht mehr da" nur einmal pro Scan an die Liste (kein Endlos-Kreislauf) und lädt den Scan nach jeder erfolgreichen Listen-Aktualisierung erneut, solange er noch ausgewählt ist. Zusätzlich hat die Meldung jetzt einen Knopf „Erneut versuchen". E2E-Test grün.
 
 #### BUG-2: Falsches „nicht erreichbar" bei vielen gleichzeitigen Abrufen
 - **Severity:** Low
@@ -386,8 +391,8 @@ Bereits angezeigte Seiten bleiben sichtbar, wenn das NAS danach wegfällt. Ein F
 
 ### Summary
 - **Acceptance Criteria:** 29/29 passed
-- **Edge Cases:** 8/10 ok, 1 mit Bug (BUG-1), 1 nur indirekt geprüft
-- **Bugs Found:** 2 total (0 critical, 0 high, 1 medium, 1 low)
+- **Edge Cases:** 9/10 ok (BUG-1 behoben), 1 nur indirekt geprüft
+- **Bugs Found:** 2 total (0 critical, 0 high, 1 medium, 1 low) – BUG-1 behoben
 - **Security:** Pass (1 Low-Robustheitsthema)
 - **Production Ready:** YES nach Regel (keine Critical/High) – **Empfehlung: BUG-1 vor PROJ-5 beheben**
 

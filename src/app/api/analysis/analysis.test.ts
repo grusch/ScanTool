@@ -184,7 +184,8 @@ describe("POST /api/analysis – Analyse & Merken", () => {
     expect(await storeEntries()).toHaveLength(2)
     await fs.rm(weg)
     await listInbox()
-    await vi.waitFor(async () => expect(await storeEntries()).toHaveLength(1))
+    // pruning runs in the background – allow time under load
+    await vi.waitFor(async () => expect(await storeEntries()).toHaveLength(1), { timeout: 5_000 })
     expect((await storeEntries())[0]).toMatch(/^bleibt\.pdf\|/)
   })
 })

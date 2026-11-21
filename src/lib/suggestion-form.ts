@@ -48,6 +48,27 @@ export function fieldsFromSuggestion(s: Suggestion | null | undefined): Suggesti
   }
 }
 
+/** ISO timestamp → TT.MM.JJJJ in local time (the day the user sees in Explorer) */
+export function isoToSwissDate(iso: string | undefined): string {
+  if (!iso) return ""
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`
+}
+
+/**
+ * Date fallback (PROJ-4 change 2026-11-21): no invoice date from the AI → date from the
+ * file properties. Returns the AI fields with the date filled and whether the fallback was used.
+ */
+export function withFileDateFallback(
+  ai: SuggestionFields,
+  fileDate: string | undefined
+): { fields: SuggestionFields; dateFromFile: boolean } {
+  if (ai.date) return { fields: ai, dateFromFile: false }
+  const date = isoToSwissDate(fileDate)
+  return date ? { fields: { ...ai, date }, dateFromFile: true } : { fields: ai, dateFromFile: false }
+}
+
 /**
  * Shown values: what the user typed wins, all untouched fields show the AI suggestion.
  * So a (new) AI result never overwrites the user's own input.

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { ExternalLink, FileSearch, FileWarning, Lock, RefreshCw, WifiOff, FileX } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,8 @@ interface PdfPreviewProps {
   selected: string | null
   /** Called when the scan is no longer in the inbox → list refresh, selection moves on (PROJ-2 rules) */
   onScanMissing: () => void
+  /** Time of the last successful list refresh (PROJ-2) – a still-listed scan is loaded again */
+  listCheckedAt?: string
 }
 
 const ERROR_ICONS: Record<ScanLoadError, typeof FileWarning> = {
@@ -54,7 +56,7 @@ function ErrorState({ error, url, onRetry }: { error: ScanLoadError; url: string
           </a>
         </Button>
       )}
-      {(error === "unreachable" || error === "unknown" || error === "no_access") && (
+      {(error === "unreachable" || error === "unknown" || error === "no_access" || error === "not_found") && (
         <Button variant="outline" size="sm" onClick={onRetry}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Erneut versuchen
@@ -65,7 +67,7 @@ function ErrorState({ error, url, onRetry }: { error: ScanLoadError; url: string
 }
 
 /** Middle column of the work area: preview of the selected scan (PROJ-3) */
-export function PdfPreview({ selected, onScanMissing }: PdfPreviewProps) {
+export function PdfPreview({ selected, onScanMissing, listCheckedAt }: PdfPreviewProps) {
   const [reloadKey, setReloadKey] = useState(0)
   const file = useScanFile(selected, reloadKey)
   // Errors detected while reading the PDF (damaged, password), per scan
@@ -81,10 +83,24 @@ export function PdfPreview({ selected, onScanMissing }: PdfPreviewProps) {
   const fetchError = file.status === "error" ? file.error : null
   const error = fetchError ?? (docError && docError.name === selected ? docError.error : null)
 
-  // Scan vanished → refresh the list right away instead of waiting for the 30-s interval
+  // Scan vanished → refresh the list right away instead of waiting for the 30-s interval.
+  // Only once per scan: if the list still shows it, the reload below takes over (no loop).
+  const reportedMissing = useRef<string | null>(null)
   useEffect(() => {
-    if (fetchError === "not_found") onScanMissing()
-  }, [fetchError, selected, onScanMissing])
+    if (file.status === "loaded") reportedMissing.current = null
+    if (fetchError === "not_found" && selected && reportedMissing.current !== selected) {
+      reportedMissing.current = selected
+      onScanMissing()
+    }
+  }, [fetchError, file.status, selected, onScanMissing])
+
+  // List refreshed and the selected scan is still listed → try loading it again
+  // (otherwise the preview stayed on "nicht mehr im Eingang" – PROJ-3 BUG-1)
+  const lastError = useRef(fetchError)
+  lastError.current = fetchError
+  useEffect(() => {
+    if (lastError.current === "not_found") setReloadKey((k) => k + 1)
+  }, [listCheckedAt])
 
   if (!selected) {
     return (

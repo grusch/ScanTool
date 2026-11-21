@@ -73,7 +73,9 @@ async function scan(folder: string, now: number): Promise<InboxFile[]> {
   const stats = await mapLimited(names, STAT_CONCURRENCY, async (name) => {
     try {
       const s = await fs.stat(path.join(folder, name))
-      return { name, size: s.size, mtimeMs: s.mtimeMs }
+      // birthtime is 0 where the file system does not know it
+      const created = s.birthtimeMs > 0 ? s.birthtimeMs : s.mtimeMs
+      return { name, size: s.size, mtimeMs: s.mtimeMs, fileDateMs: Math.min(created, s.mtimeMs) }
     } catch {
       return null // vanished between listing and stat
     }
@@ -89,7 +91,12 @@ async function scan(folder: string, now: number): Promise<InboxFile[]> {
     .filter((s): s is NonNullable<typeof s> => s !== null)
     .filter((s) => isStable(keyPrefix + s.name, s.size, s.mtimeMs, now))
     .sort((a, b) => a.mtimeMs - b.mtimeMs || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-    .map((s) => ({ name: s.name, size: s.size, modifiedAt: new Date(s.mtimeMs).toISOString() }))
+    .map((s) => ({
+      name: s.name,
+      size: s.size,
+      modifiedAt: new Date(s.mtimeMs).toISOString(),
+      fileDate: new Date(s.fileDateMs).toISOString(),
+    }))
 }
 
 /** Lists the configured inbox. Never throws for folder problems – reports a status instead. */

@@ -2,7 +2,7 @@
 
 ## Status: Approved
 **Created:** 2026-11-21
-**Last Updated:** 2026-11-21
+**Last Updated:** 2026-11-21 (Datum-Fallback aus Datei-Eigenschaften)
 
 ## Dependencies
 - Requires: PROJ-1 (Einstellungen & Setup) – Claude-API-Schlüssel und Verbindung; Hinweis „API-Schlüssel fehlt"
@@ -50,6 +50,7 @@
 - [ ] Angenommen die Beschreibung wird vorgeschlagen, dann mit 2–5 Wörtern, die das Hauptprodukt bzw. die Leistung benennen (z. B. „Monitor Dell U2724D")
 - [ ] Angenommen der Scan enthält mehrere Positionen, wenn Artikel vorgeschlagen werden, dann die Hauptpositionen (höchstens ca. 10), ohne Versandkosten/Gebühren
 - [ ] Angenommen keine Garantiedauer ist erkennbar, dann bleibt das Feld leer
+- [ ] Angenommen die KI findet kein Rechnungsdatum (oder es gibt keine KI-Analyse, z. B. ohne API-Schlüssel), wenn die Felder angezeigt werden, dann steht im Datumsfeld das frühere von Erstell- und Änderungsdatum der Datei mit dem Hinweis „Datum aus Datei-Eigenschaften"; während die Analyse läuft, bleibt das Feld leer
 
 ### Dateiname-Vorschau
 - [ ] Angenommen Datum, Lieferant und Beschreibung sind ausgefüllt, wenn die Felder angezeigt oder geändert werden, dann zeigt die Vorschau sofort den Namen `JJMMTT_Lieferant_Beschreibung.pdf` (z. B. `261121_Digitec_Monitor-Dell-U2724D.pdf`)
@@ -105,7 +106,7 @@
 ## Open Questions
 - [ ] Reicht Haiku 5.5 für ≥ 80 % brauchbare Vorschläge? Erste QA-Stichprobe (4 echte Scans): Typ 4/4 richtig, bei beiden Rechnungen Datum/Lieferant/Betrag/Währung/Rechnungsnr. exakt richtig; nur der Stil der Beschreibung schwankt. Stichprobe klein → im Alltag weiter beobachten.
 - [ ] Tatsächliche Kosten pro Scan: noch nicht gemessen (Server protokolliert die Token-Nutzung nicht); Schätzung ~0,05–0,1 Rp. pro üblichem Scan.
-- [ ] **Änderungswunsch (2026-11-21, nach QA):** Datum für den Dateinamen = Rechnungsdatum; ist keines erkennbar, das Datum aus den Datei-Eigenschaften als Vorschlag eintragen – das **frühere von Erstelldatum und Änderungsdatum** der Datei (robust gegen Kopieren bzw. Bearbeiten; bei den Scans der Fritz!Box sind beide identisch). Hinweis im Formular: „Datum aus Datei-Eigenschaften". Nutzer bestätigt: nicht das PDF-interne Datum. Mit `/refine PROJ-4` bzw. bei PROJ-5 umsetzen.
+- [x] **Änderungswunsch (2026-11-21, nach QA) – umgesetzt:** Datum für den Dateinamen = Rechnungsdatum; ist keines erkennbar, das Datum aus den Datei-Eigenschaften als Vorschlag eintragen – das **frühere von Erstelldatum und Änderungsdatum** der Datei (robust gegen Kopieren bzw. Bearbeiten; bei den Scans der Fritz!Box sind beide identisch). Hinweis im Formular: „Datum aus Datei-Eigenschaften". Nutzer bestätigt: nicht das PDF-interne Datum. Mit `/refine PROJ-4` bzw. bei PROJ-5 umsetzen.
 - [ ] Details zum Knopf „Scan" (Name des Unterordners im Scanner-Ordner, Umbenennen ja/nein) – in PROJ-5 klären.
 
 ## Decision Log
@@ -123,6 +124,8 @@
 | KI-Ergebnisse überdauern einen Neustart, eigene Änderungen nur die Sitzung | Jeder Scan wird genau einmal bezahlt; Änderungen werden ohnehin mit PROJ-5 abgelegt | 2026-11-21 |
 | Nur die ersten 5 Seiten; ab 30 MB keine Analyse | Rechnungsdaten stehen vorne; Kosten bleiben bei dicken Dokumenten klein | 2026-11-21 |
 | Fehler verhindern nie das manuelle Ausfüllen | Tool bleibt auch ohne KI nutzbar | 2026-11-21 |
+| Datum-Fallback: kein Rechnungsdatum → früheres von Erstell-/Änderungsdatum der Datei (nicht PDF-intern), mit Hinweis | Nutzerwunsch nach QA; Dateiname ist damit fast immer vollständig; „früheres" ist robust gegen Kopieren/Bearbeiten | 2026-11-21 |
+| Keine grauen Beispieltexte in Lieferant/Beschreibung/Betrag/Währung | Wirkten wie eingetragene Werte (BUG-3) | 2026-11-21 |
 
 ### Technical Decisions
 | Decision | Rationale | Date |
@@ -336,6 +339,13 @@ In allen Fällen bleibt das Formular bedienbar. Fehler werden **nicht** gemerkt,
 
 **Live (mit Zustimmung des Nutzers, 1 echter Aufruf):** Scan `CHENGPR006_004612.pdf` (1 Seite) → 3,8 s Analyse (+ einmalig Kompilieren im Dev-Modus), korrekt als „kein Rechnungsdokument" erkannt (Brief), nur Datum und Absender eingetragen. Zweiter Abruf aus dem Speicher in 0,05 s, ohne Kosten.
 
+## Änderungen nach QA (2026-11-21)
+- **Datum-Fallback:** `GET /api/inbox` liefert je Scan zusätzlich `fileDate` = früheres von Erstell- und Änderungszeit der Datei (`birthtime`, falls bekannt). `withFileDateFallback()` (`suggestion-form.ts`) trägt es als TT.MM.JJJJ (Ortszeit) ein, wenn die KI kein Datum liefert, keine Analyse möglich ist oder ein Fehler auftrat – nicht während die Analyse läuft. Hinweis „Datum aus Datei-Eigenschaften" unter dem Feld, solange der Nutzer es nicht geändert hat.
+- **BUG-3 behoben:** Beispiel-Platzhalter entfernt.
+- **„Scan nicht mehr da" (wie PROJ-3 BUG-1):** Die Vorschlags-Spalte löst die Listen-Aktualisierung nur einmal pro Scan aus und fragt nach jeder erfolgreichen Aktualisierung erneut an, solange der Scan ausgewählt bleibt.
+- Nachtest: Vitest 203/203, E2E gesamt (PROJ-1 bis PROJ-4, 4 Browser) **429 grün, 0 rot**, 3 übersprungen.
+- Tests: +3 Unit (Fallback), +1 Integration (`fileDate`), +5 Komponente (Fallback mit/ohne KI und Schlüssel, Hinweis, kein Endlos-Kreislauf, keine Platzhalter); E2E PROJ-4 angepasst (ohne Schlüssel: Datum aus Datei).
+
 ## QA Test Results
 
 **Tested:** 2026-11-21
@@ -448,12 +458,13 @@ In allen Fällen bleibt das Formular bedienbar. Fehler werden **nicht** gemerkt,
 - **Actual:** Beim Übernehmen der Seite durch React wird das Feld zurückgesetzt
 - **Priority:** Nice to have (Felder bis zur Bereitschaft deaktivieren o. ä.)
 
-#### BUG-3: Grau vorbelegte Beispieltexte wirken wie Werte
+#### BUG-3: Grau vorbelegte Beispieltexte wirken wie Werte – BEHOBEN (2026-11-21)
 - **Severity:** Low
 - **Steps to Reproduce:** Scan mit leerem Betrag/Währung/Beschreibung ansehen
 - **Expected:** Leere Felder sind klar als leer erkennbar
 - **Actual:** Platzhalter „0.00", „CHF", „z. B. Monitor Dell U2724D" sehen wie eingetragene Werte aus (vom Nutzer angesprochen)
 - **Priority:** Fix vor PROJ-5 empfohlen (Platzhalter entfernen oder klar als Beispiel kennzeichnen)
+- **Status:** Platzhalter bei Lieferant, Beschreibung, Betrag und Währung entfernt (nur das Format „TT.MM.JJJJ" beim Datum bleibt). Komponententest prüft es.
 
 ### Beobachtungen (keine Bugs)
 - E2E-Server ohne API-Schlüssel: KI-Abläufe sind deshalb per Komponenten-/Integrationstests mit simulierter Schnittstelle abgedeckt; live wurden sie mit dem echten Schlüssel geprüft.
