@@ -17,8 +17,8 @@
 
 Lokales Tool (nur localhost, Einzelnutzer, kein Login), das eingescannte **Rechnungen und Garantiescheine** aus einem lokal synchronisierten OneDrive-Eingangsordner anzeigt, per **Claude API** analysiert und nach Bestätigung umbenannt ablegt:
 
-- Dateiname: `JJMMTT_Lieferant_Beschreibung.pdf`
-- Ablage: `<Ablage>\Rechnungen\JJJJ\` bzw. `<Ablage>\Garantiescheine\JJJJ\`
+- Dateiname: `JJMMTT_Lieferant_Beschreibung.pdf`, Garantiescheine mit Zusatz `_Garantie`
+- Ablage: `<Ablage>\Rechnungen\JJJJ\` (Rechnungen und Garantiescheine gemeinsam)
 - MVP: PROJ-1 → PROJ-5 (Einstellungen, Eingangsliste, PDF-Vorschau, KI-Analyse, Prüfen & Ablegen)
 - Später: OCR-Modus (P1), Supabase-Metadaten + Suche + Garantie-Übersicht (P1), Automatikmodus (P2)
 

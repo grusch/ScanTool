@@ -12,7 +12,7 @@ ScanTool ist ein lokales Werkzeug, das eingescannte Rechnungen und Garantieschei
 
 | Priority | Feature | Status |
 |----------|---------|--------|
-| P0 (MVP) | Projekt-Setup & Einstellungen (Ordnerpfade, Claude-API-Schlüssel) | Planned |
+| P0 (MVP) | Projekt-Setup & Einstellungen (Ordnerpfade, Claude-API-Schlüssel) – PROJ-1 | Planned (Spec) |
 | P0 (MVP) | Eingangsliste: neue PDFs im Eingangsordner anzeigen | Planned |
 | P0 (MVP) | PDF-Vorschau | Planned |
 | P0 (MVP) | KI-Analyse: Typ, Datum, Lieferant, Beschreibung, Betrag u. a. vorschlagen | Planned |
@@ -26,7 +26,8 @@ ScanTool ist ein lokales Werkzeug, das eingescannte Rechnungen und Garantieschei
 
 **Ablagekonvention (MVP):**
 - Dateiname: `JJMMTT_Lieferant_Beschreibung.pdf`, z. B. `261121_Digitec_Monitor-Dell-U2724D.pdf`
-- Ordner: `<Ablage>\Rechnungen\JJJJ\` bzw. `<Ablage>\Garantiescheine\JJJJ\`
+- Garantiescheine erhalten den Zusatz `_Garantie`, z. B. `261121_Digitec_Monitor-Dell-U2724D_Garantie.pdf`
+- Ordner: `<Ablage>\Rechnungen\JJJJ\` – für Rechnungen **und** Garantiescheine (keine Trennung)
 
 **Ablauf (MVP):** Eingangsliste (links) → PDF-Vorschau (Mitte) → KI-Vorschläge bearbeitbar (rechts) → „Ablegen“ verschiebt die Datei → nächster Scan.
 

@@ -15,11 +15,11 @@
 
 | ID | Feature | Beschreibung | Prio | Abhängig von | Status | Spec | Created |
 |----|---------|--------------|------|--------------|--------|------|---------|
-| PROJ-1 | Einstellungen & Setup | Ordnerpfade (Eingang, Ablage) und Claude-API-Schlüssel konfigurieren und prüfen | P0 | None | Roadmap | – | 2026-11-21 |
+| PROJ-1 | Einstellungen & Setup | Ordnerpfade (Eingang, Ablage) und Claude-API-Schlüssel konfigurieren und prüfen | P0 | None | Planned | [PROJ-1-einstellungen-setup.md](PROJ-1-einstellungen-setup.md) | 2026-11-21 |
 | PROJ-2 | Eingangsliste | PDFs im Eingangsordner auflisten, aktualisieren, Scan auswählen | P0 | PROJ-1 | Roadmap | – | 2026-11-21 |
 | PROJ-3 | PDF-Vorschau | Ausgewählten Scan mehrseitig anzeigen (blättern, zoomen) | P0 | PROJ-2 | Roadmap | – | 2026-11-21 |
 | PROJ-4 | KI-Analyse | PDF an Claude senden, Typ/Datum/Lieferant/Beschreibung/Betrag/Artikel/Garantiedauer vorschlagen | P0 | PROJ-1, PROJ-2 | Roadmap | – | 2026-11-21 |
-| PROJ-5 | Prüfen & Ablegen | Vorschläge bearbeiten, Dateiname `JJMMTT_Lieferant_Beschreibung.pdf` bilden, Zielordner anlegen, Datei verschieben, Namenskonflikte behandeln | P0 | PROJ-2, PROJ-4 | Roadmap | – | 2026-11-21 |
+| PROJ-5 | Prüfen & Ablegen | Vorschläge bearbeiten, Dateiname `JJMMTT_Lieferant_Beschreibung[_Garantie].pdf` bilden, Zielordner anlegen, Datei verschieben, Namenskonflikte behandeln | P0 | PROJ-2, PROJ-4 | Roadmap | – | 2026-11-21 |
 | PROJ-6 | OCR-Modus & Umschalter | Texterkennung plus Regeln als Alternative zur KI, umschaltbar in den Einstellungen | P1 | PROJ-4 | Roadmap | – | 2026-11-21 |
 | PROJ-7 | Supabase Infrastructure Setup | Supabase-Projekt, Umgebungsvariablen, Datenbankschema | P1 | None | Roadmap | – | 2026-11-21 |
 | PROJ-8 | Metadaten speichern | Beim Ablegen Metadaten und Dateipfad in die Datenbank schreiben | P1 | PROJ-5, PROJ-7 | Roadmap | – | 2026-11-21 |
