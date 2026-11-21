@@ -17,7 +17,7 @@
 |----|---------|--------------|------|--------------|--------|------|---------|
 | PROJ-1 | Einstellungen & Setup | Ordnerpfade (Eingang, Ablage) und Claude-API-Schlüssel konfigurieren und prüfen | P0 | None | Approved | [PROJ-1-einstellungen-setup.md](PROJ-1-einstellungen-setup.md) | 2026-11-21 |
 | PROJ-2 | Eingangsliste | PDFs im Eingangsordner auflisten, aktualisieren, Scan auswählen | P0 | PROJ-1 | Approved | [PROJ-2-eingangsliste.md](PROJ-2-eingangsliste.md) | 2026-11-21 |
-| PROJ-3 | PDF-Vorschau | Ausgewählten Scan mehrseitig anzeigen (scrollen, zoomen, Ansicht drehen, in neuem Tab öffnen) | P0 | PROJ-1, PROJ-2 | Planned | [PROJ-3-pdf-vorschau.md](PROJ-3-pdf-vorschau.md) | 2026-11-21 |
+| PROJ-3 | PDF-Vorschau | Ausgewählten Scan mehrseitig anzeigen (scrollen, zoomen, Ansicht drehen, in neuem Tab öffnen) | P0 | PROJ-1, PROJ-2 | Architected | [PROJ-3-pdf-vorschau.md](PROJ-3-pdf-vorschau.md) | 2026-11-21 |
 | PROJ-4 | KI-Analyse | PDF an Claude senden, Typ/Datum/Lieferant/Beschreibung/Betrag/Artikel/Garantiedauer vorschlagen | P0 | PROJ-1, PROJ-2 | Roadmap | – | 2026-11-21 |
 | PROJ-5 | Prüfen & Ablegen | Vorschläge bearbeiten, Dateiname `JJMMTT_Lieferant_Beschreibung[_Garantie].pdf` bilden, Zielordner anlegen, Datei verschieben, Namenskonflikte behandeln | P0 | PROJ-2, PROJ-4 | Roadmap | – | 2026-11-21 |
 | PROJ-6 | OCR-Modus & Umschalter | Texterkennung plus Regeln als Alternative zur KI, umschaltbar in den Einstellungen | P1 | PROJ-4 | Roadmap | – | 2026-11-21 |
