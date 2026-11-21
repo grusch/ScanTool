@@ -1,6 +1,6 @@
 # PROJ-4: KI-Analyse
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -103,8 +103,9 @@
 - **Lokal gemerkte Ergebnisse** enthalten nur die Vorschläge, keine Kopie des Scans.
 
 ## Open Questions
-- [ ] Reicht Haiku 5.5 für ≥ 80 % brauchbare Vorschläge? Sonst Modell wechseln (eine Stelle im Code) – in QA mit echten Rechnungen messen, inkl. tatsächlicher Kosten pro Scan.
-- [ ] Welche Trefferquote erreichen die Vorschläge bei echten Scans? Ziel laut PRD: ≥ 80 % ohne oder mit kleiner Korrektur – in QA mit einigen echten Rechnungen prüfen.
+- [ ] Reicht Haiku 5.5 für ≥ 80 % brauchbare Vorschläge? Erste QA-Stichprobe (4 echte Scans): Typ 4/4 richtig, bei beiden Rechnungen Datum/Lieferant/Betrag/Währung/Rechnungsnr. exakt richtig; nur der Stil der Beschreibung schwankt. Stichprobe klein → im Alltag weiter beobachten.
+- [ ] Tatsächliche Kosten pro Scan: noch nicht gemessen (Server protokolliert die Token-Nutzung nicht); Schätzung ~0,05–0,1 Rp. pro üblichem Scan.
+- [ ] **Änderungswunsch (2026-11-21, nach QA):** Datum für den Dateinamen = Rechnungsdatum; ist keines erkennbar, das Datum der PDF-Datei (Scan-Datum) als Vorschlag eintragen. Mit `/refine PROJ-4` bzw. bei PROJ-5 umsetzen.
 - [ ] Details zum Knopf „Scan" (Name des Unterordners im Scanner-Ordner, Umbenennen ja/nein) – in PROJ-5 klären.
 
 ## Decision Log
@@ -336,7 +337,136 @@ In allen Fällen bleibt das Formular bedienbar. Fehler werden **nicht** gemerkt,
 **Live (mit Zustimmung des Nutzers, 1 echter Aufruf):** Scan `CHENGPR006_004612.pdf` (1 Seite) → 3,8 s Analyse (+ einmalig Kompilieren im Dev-Modus), korrekt als „kein Rechnungsdokument" erkannt (Brief), nur Datum und Absender eingetragen. Zweiter Abruf aus dem Speicher in 0,05 s, ohne Kosten.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-11-21
+**App URL:** http://127.0.0.1:3000 (Dev, mit echtem API-Schlüssel) bzw. isolierter Produktions-Server Port 3100 ohne Schlüssel (E2E)
+**Tester:** QA Engineer (AI)
+
+### Automatisierte Tests
+- **Vitest:** 194/194 grün, davon neu bzw. für PROJ-4:
+  - 35 Integrationstests `POST /api/analysis` (Claude simuliert)
+  - 15 Tests Dateiname-Regel
+  - **18 Komponententests** `src/components/suggestions/suggestions-panel.test.tsx`: ganze Arbeitsfläche mit simulierter Schnittstelle (Auslösen, Merken, Tippen während Analyse, Scan-Wechsel, „Neu analysieren", alle Fehlermeldungen, ohne Schlüssel, Scan weg, HTML im Vorschlag)
+- **Playwright:** `tests/PROJ-4-ki-analyse.spec.ts`, 11 Tests × 4 Browser. Der E2E-Server läuft bewusst **ohne** API-Schlüssel, daher dort: Zustand ohne Schlüssel, Dateiname-Vorschau, Eingaben beim Scan-Wechsel, Darstellung, Schnittstellen-Schutz.
+- **Gesamtlauf** inkl. Regression PROJ-1/2/3: 418 grün, 11 rot, 3 übersprungen. Ursachen der roten Läufe:
+  - 4× bekannter PROJ-3-BUG-1
+  - 6× PROJ-4-Tests in WebKit/Mobile Safari: Test tippte vor dem Hydrieren der Seite. Test korrigiert (wartet auf `networkidle`), danach 23/23 in WebKit + Mobile Safari grün; siehe BUG-2.
+  - 1× PROJ-3 AC20 in Mobile Safari: einmaliger Ausreißer, bei Wiederholung grün
+- **Live** (Dev, echter Schlüssel, Haiku 5.5): 4 echte Scans des Nutzers, Analyse 3,8 s (1 Seite), Abruf gemerkter Ergebnisse 0,05 s.
+
+### Trefferquote (echte Scans, gegen das Dokument geprüft)
+| Scan | Erkannt | Bewertung |
+|------|---------|-----------|
+| 004612 (Brief Bootslager) | kein Rechnungsdokument, Datum 23.10.2026, Absender | ✓ korrekt, nichts geraten |
+| 004613 (Rechnung Elektra) | 02.11.2026, Elektra Gaiserwald, CHF 694.05, Nr. 745170, „Strom Rechnung E-Mobility" | ✓ alle Kernfelder exakt |
+| 004615 (Rechnung Elektra) | 02.11.2026, Elektra Gaiserwald, CHF 144.50, Nr. 747005, „Elektrizität Rechnung Periode 09-10/2026" | ✓ Kernfelder exakt; Beschreibung uneinheitlich (BUG-1) |
+| 004617 (Mitteilung Tarife) | kein Rechnungsdokument, Absender | ✓ korrekt |
+
+### Acceptance Criteria Status
+
+#### Auslösen & Merken
+- [x] Automatischer Start bei Auswahl (Komponententest + live)
+- [x] Bereits analysiert → sofort, keine neue Anfrage an Claude, auch über Neustart (Datei-Speicher; live: Ergebnisse aus früherer Sitzung kamen ohne Kosten)
+- [x] Ersetzte Datei → neue Analyse (Integrationstest)
+- [x] Verschwundener Scan → Ergebnis wird beim Auflisten verworfen (Integrationstest)
+- [x] „Neu analysieren" analysiert erneut; eigene Eingaben bleiben. Abweichung, dokumentiert: nicht berührte Felder werden ersetzt, nicht nur leere.
+
+#### Felder & Vorschläge
+- [x] Bearbeitbare Felder: Typ, Datum, Lieferant, Beschreibung, Betrag + Währung, Rechnungsnr., Artikel, Garantie
+- [x] Unsicher → leer, nichts geraten (live 2 Briefe; Integrationstest „ungültige Werte → leer")
+- [x] Werte direkt änderbar/überschreibbar
+- [x] Formate: Datum TT.MM.JJJJ, Betrag 2 Nachkommastellen + Währung
+- [x] Lieferant als Kurzname („Elektra Gaiserwald")
+- [x] Beschreibung 2–5 Wörter (live erfüllt; Stil uneinheitlich → BUG-1)
+- [x] Artikel = Hauptpositionen, max. 10
+- [x] Keine Garantie erkennbar → leer
+
+#### Dateiname-Vorschau
+- [x] Live aus den Feldern, `JJMMTT_Lieferant_Beschreibung.pdf`
+- [x] `_Garantie` beim Garantieschein
+- [x] Leerzeichen → `-`, Umlaute bleiben, `\ / : * ? " < > | _` bereinigt
+- [x] Max. 100 Zeichen, Beschreibung gekürzt
+- [x] Fehlende/ungültige Teile werden genannt („Datum fehlt · …", „Datum ungültig")
+
+#### Laden & eigene Eingaben
+- [x] „KI analysiert …" mit Ladeanzeige, Felder bedienbar
+- [x] Eigene Eingaben während der Analyse werden nicht überschrieben
+- [x] Eingaben bleiben beim Hin- und Herwechseln
+- [x] < 10 s bei üblichen Scans (live 3,8 s)
+- [x] Schneller Wechsel: Analyse läuft zu Ende und wird gemerkt, angezeigt wird nur der aktuelle Scan
+
+#### Fehlerfälle
+- [x] Kein Schlüssel → keine Analyse, Hinweis + Link, Felder selbst ausfüllbar (E2E, 4 Browser)
+- [x] Schlüssel ungültig / kein Guthaben / Claude weg / > 60 s → Meldung je Fall + „Erneut versuchen"
+- [x] Beschädigt / passwortgeschützt → „Scan kann nicht analysiert werden", ohne Kosten
+- [x] Kein Rechnungsdokument → Typ leer + Hinweis, erkennbare Angaben eingetragen (live)
+- [x] NAS weg → „Eingangsordner nicht erreichbar" + „Erneut versuchen"
+
+#### Grosse Scans
+- [x] > 5 Seiten → nur erste 5 Seiten gesendet + Hinweis
+- [x] > 30 MB → keine Analyse + Hinweis
+
+#### Darstellung
+- [x] Kein Scan → „Kein Scan ausgewählt"
+- [x] 375 px / 768 px: Felder unter der Vorschau, bedienbar, kein seitliches Scrollen; Desktop: rechte Spalte
+
+### Edge Cases Status
+- [x] Mehrere Daten auf dem Dokument → Rechnungsdatum (live, Rechnungen mit Periode und Zahldatum)
+- [x] Teilweise lesbare / ungültige Daten → leer (Integrationstest)
+- [x] Fremdwährung / Gutschrift (negativ) → übernommen (Unit-/Integrationstest)
+- [x] Kein Rechnungsdokument (2 echte Briefe)
+- [x] Sonderzeichen im Lieferanten → im Feld unverändert, im Dateinamen bereinigt
+- [x] Unbrauchbare/abgelehnte/abgeschnittene Antwort → Fehler + „Erneut versuchen"
+- [x] „Neu analysieren" während Analyse → deaktiviert
+- [x] Zwei gleichzeitige Anfragen → nur 1 Aufruf an Claude
+- [ ] Rechnung + Garantieschein in einem PDF, handschriftliche Scans → nicht geprüft (kein Testmaterial)
+
+### Security Audit Results
+- [x] Nur lokale Anfragen: fremde Origin / `Sec-Fetch-Site: cross-site` → 403
+- [x] Path Traversal und fremde Dateien → 400 (`..\`, `../`, `C:\`, UNC, `:`-Stream, andere Endungen)
+- [x] Übergrosser Request (2 MB) → 400; `__proto__` im Body ohne Wirkung
+- [x] API-Schlüssel nie im Browser: Browser-Code enthält nur den Anleitungstext „ANTHROPIC_API_KEY=sk-ant-…", kein echter Schlüssel; nicht in Antworten, nicht in `data/analyses.json`
+- [x] Inhalte aus dem Scan werden als Text dargestellt (HTML im Vorschlag wird nicht ausgeführt)
+- [x] Header: `no-store`, `nosniff`, `X-Frame-Options: DENY`
+- [x] Kosten-Missbrauch: wiederholte Anfragen kommen aus dem Speicher (20 Anfragen in 1,2 s, 0 Kosten); nur „Neu analysieren" (force) kostet erneut – nur lokal auslösbar
+- [ ] Hinweis (kein Bug): Text im Scan kann die KI theoretisch beeinflussen (Prompt-Injection). Wirkung begrenzt auf falsche Vorschläge im festen Format, die der Nutzer vor dem Ablegen prüft.
+
+### Bugs Found
+
+#### BUG-1: Stil der Beschreibung schwankt
+- **Severity:** Low
+- **Steps to Reproduce:** Zwei gleichartige Stromrechnungen analysieren
+- **Expected:** Ähnliche, kurze Beschreibungen ohne Sonderzeichen
+- **Actual:** „Strom Rechnung E-Mobility" bzw. „Elektrizität Rechnung Periode 09-10/2026" (mit `/`). Bei der zweiten enthalten die Artikel Beträge („Energie 73.14").
+- **Auswirkung:** Gering, der Dateiname wird korrekt bereinigt und das Feld lässt sich überschreiben.
+- **Priority:** Nice to have (Prompt schärfen, z. B. Beispiele, keine Datums-/Periodenangaben, Artikel ohne Beträge)
+
+#### BUG-2: Eingaben in den ersten Sekunden nach dem Laden gehen verloren
+- **Severity:** Low
+- **Steps to Reproduce:** Seite neu laden und sofort (vor vollständigem Laden) in ein Feld tippen, v. a. in Safari/WebKit
+- **Expected:** Eingabe bleibt
+- **Actual:** Beim Übernehmen der Seite durch React wird das Feld zurückgesetzt
+- **Priority:** Nice to have (Felder bis zur Bereitschaft deaktivieren o. ä.)
+
+#### BUG-3: Grau vorbelegte Beispieltexte wirken wie Werte
+- **Severity:** Low
+- **Steps to Reproduce:** Scan mit leerem Betrag/Währung/Beschreibung ansehen
+- **Expected:** Leere Felder sind klar als leer erkennbar
+- **Actual:** Platzhalter „0.00", „CHF", „z. B. Monitor Dell U2724D" sehen wie eingetragene Werte aus (vom Nutzer angesprochen)
+- **Priority:** Fix vor PROJ-5 empfohlen (Platzhalter entfernen oder klar als Beispiel kennzeichnen)
+
+### Beobachtungen (keine Bugs)
+- E2E-Server ohne API-Schlüssel: KI-Abläufe sind deshalb per Komponenten-/Integrationstests mit simulierter Schnittstelle abgedeckt; live wurden sie mit dem echten Schlüssel geprüft.
+- Tatsächliche Kosten pro Scan werden nicht protokolliert (offene Frage).
+- Laufzeit des Gesamtlaufs 5,8 h, weil der PC zwischendurch im Ruhezustand war; kein App-Problem.
+
+### Summary
+- **Acceptance Criteria:** 35/35 passed (1 dokumentierte Abweichung bei „Neu analysieren")
+- **Edge Cases:** 8/9 geprüft ok, 1 mangels Testmaterial nicht geprüft
+- **Bugs Found:** 3 total (0 critical, 0 high, 0 medium, 3 low)
+- **Security:** Pass
+- **Production Ready:** YES
+- **Recommendation:** BUG-3 und den Änderungswunsch „Datum-Fallback" vor bzw. mit PROJ-5 umsetzen
 
 ## Deployment
 _To be added by /deploy_
