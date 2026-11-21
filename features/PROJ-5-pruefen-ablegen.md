@@ -295,7 +295,23 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 **Abweichungen / Hinweise:**
 - Tastenkürzel hängen am Ablage-Bereich (immer genau einer sichtbar, solange ein Scan ausgewählt ist) statt an der Arbeitsfläche – gleiche Wirkung, einfacher.
 - Geprüft im Dev-Server mit simulierter Schnittstelle (nichts verschoben): Darstellung, Tooltip, Toast mit „Rückgängig", 375 px ohne seitliches Scrollen.
-- **Noch offen (Backend):** `POST /api/filing` und `/api/filing/undo` existieren noch nicht → bis `/backend` meldet Ablegen „Ablegen fehlgeschlagen".
+
+## Implementation Notes (Backend)
+**Gebaut (2026-11-21):**
+- `POST /api/filing` (`src/app/api/filing/route.ts`) – Body `{ scan, target: "rechnung"|"scan", fileName|null, year? }` (Zod). Antwort `{ ok: true, status: "filed"|"already_filed"|"copied_not_deleted", location, renamed, undoToken? }` oder `{ ok: false, code }`: 400 `invalid_request`, 404 `not_found`, 409 `no_permission`, 503 `inbox_unreachable`/`archive_unreachable`, 500 `unknown`, 403 nicht lokal.
+- `POST /api/filing/undo` (`…/undo/route.ts`) – Body `{ token }` (UUID). Antwort `{ ok: true, name, renamed }` oder 410 `expired`/`gone`, 503 `inbox_unreachable`.
+- `src/lib/server/filing.ts`:
+  - Prüfung: Scan-Name wie PROJ-3, Dateiname mit `validateFileName` (gleiche Regel wie im Browser), „Rechnung" braucht Name + Jahr (1990–2100).
+  - Zielordner nur aus den Einstellungen: `<Ablage>\Rechnungen\<Jahr>\` (Ablage-Stammordner muss existieren, wird nie angelegt) bzw. `<Eingang>\Abgelegt\`; Unterordner werden rekursiv angelegt.
+  - Namenswahl: Name und Nummern-Varianten (`_2` …, vor `_Garantie`) – erste freie; existiert eine Variante mit gleicher Grösse und SHA-256 → `already_filed` (nur Eingang bereinigen).
+  - „Rechnung": Kopie unter `~$scantool-<zufall>.tmp` im Zielordner (`COPYFILE_EXCL`) → Grösse + SHA-256 prüfen → nochmals prüfen, ob der Name frei ist → umbenennen → Änderungsdatum übernehmen → Original löschen. Fehler → Zwischendatei entfernt, Original unangetastet. Löschen scheitert → `copied_not_deleted` (nächster Versuch erkennt die identische Datei).
+  - „Scan": gleiches Laufwerk → direktes Umbenennen (nach Konflikt-Prüfung).
+  - Pro Scan nur ein Ablegen gleichzeitig (Sperre im Server); eine zweite gleichzeitige Anfrage findet den Scan nicht mehr (`not_found`).
+  - Rückgängig-Merkzettel im Arbeitsspeicher (10 min, einmal verwendbar): Ablageort, Originalname, Zeitstempel, gemerkte KI-Vorschläge. Undo legt die Datei mit Originalname (bei Belegung `_2`) und Originaldatum zurück und stellt die KI-Vorschläge im Ergebnis-Speicher wieder her → keine neue Analyse.
+
+**Tests:** `src/app/api/filing/filing.test.ts` – 31 Integrationstests mit echten Dateien in temporären Ordnern: Rechnung (Ordner anlegen, Inhalt + Datum, keine Zwischendateien), Jahr aus der Anfrage, `.pdf` ergänzen, Konflikte `_2`/`_3`/`_2_Garantie`, identische Datei (auch als `_2`), Original gesperrt → copied_not_deleted → zweiter Versuch bereinigt, kaputte Kopie wird erkannt, kein Platz, Ablage fehlt (Stammordner wird nicht angelegt), Scan nach Abgelegt (mit/ohne Namen, Konflikt), 8 ungültige Anfragen ohne Veränderung, NAS unerreichbar < 5 s, gleichzeitige Anfragen = einmal abgelegt, fremde Webseiten 403, Rückgängig (Rechnung inkl. Datum + KI-Vorschlag, Scan, belegter Name → `_2`, Datei weg → gone, unbekannt/abgelaufen, Token nur einmal). Vitest gesamt 272/272.
+
+**Live (mit Zustimmung, eigene Testdatei, NAS → OneDrive):** Ablegen 1,4 s, Inhalt identisch, Datum erhalten, keine Zwischendateien; Rückgängig 0,8 s, Datei wieder im Eingang und aus der Ablage entfernt; Testdatei danach gelöscht. Dabei wurde `Finanzen\Rechnungen6\` neu angelegt (bleibt leer bestehen). Der Nutzer hat zudem selbst einen Brief per „Scan" abgelegt → korrekt in `Scanner\Abgelegt\` mit Originaldatum.
 
 ## QA Test Results
 _To be added by /qa_
