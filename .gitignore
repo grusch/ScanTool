@@ -43,3 +43,8 @@ next-env.d.ts
 
 # Local app data (settings)
 /data/
+
+# Playwright
+/test-results/
+/playwright-report/
+/tests/.qa-data/

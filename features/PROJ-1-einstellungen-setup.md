@@ -1,6 +1,6 @@
 # PROJ-1: Einstellungen & Setup
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -273,7 +273,116 @@ _Stand 2026-11-21 – /backend_
 - `.env.local.example` konnte nicht angelegt werden (Zugriffssperre für `.env*`-Dateien) – muss manuell angelegt werden.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-11-21
+**App URL:** http://127.0.0.1:3000 (manuell/API) · http://127.0.0.1:3100 (isolierter E2E-Server, eigener Datenordner, ohne API-Schlüssel)
+**Tester:** QA Engineer (AI)
+**Browser:** Chromium 145, Firefox 146, WebKit 26 (Desktop Safari), WebKit iPhone 13 (Mobile Safari)
+
+### Automatisierte Tests
+- **Vitest:** 42/42 grün (13 Pfad-Unit-Tests, 18 API-Integrationstests, 11 Verbindungstest-Tests mit gemocktem SDK)
+- **Playwright:** 120/120 grün (30 Tests × 4 Browser-Profile) – `tests/PROJ-1-einstellungen-setup.spec.ts`
+- E2E läuft gegen eigenen Produktions-Server auf Port 3100 mit `SCANTOOL_DATA_DIR=tests/.qa-data` und leerem `ANTHROPIC_API_KEY` → echte Einstellungen bleiben unberührt, keine API-Kosten. Claude-Antworten werden per `page.route` simuliert.
+
+### Acceptance Criteria Status
+
+#### Erster Start & Sperre
+- [x] AC1 Ersteinrichtung → Einstellungsseite mit Willkommens-Hinweis
+- [x] AC2 Ungültiger Ordner → Umleitung von `/` auf `/einstellungen`
+- [x] AC3 Gültige Ordner ohne Schlüssel → Hauptansicht erreichbar, Hinweis „API-Schlüssel fehlt"
+- [x] AC4 Zahnrad öffnet Einstellungen mit gespeicherten Werten
+
+#### Ordnerpfade
+- [x] AC5 Eingangsordner: „Ordner gefunden, 2 PDFs" (`.pdf` und `.PDF` gezählt, `.txt` nicht)
+- [x] AC6 Ablage-Stammordner: „Ordner gefunden" + Vorschau `…\Rechnungen\JJJJ\`
+- [x] AC7 Nicht existierender Ordner → Meldung + Knopf „Ordner anlegen"
+- [x] AC8 „Ordner anlegen" legt Ordner inkl. übergeordneter Ordner an
+- [x] AC9 Kein Lese-/Schreibrecht → Meldung (geprüft mit NTFS-Sperre per `icacls`, lesend und schreibend)
+- [x] AC10 Identische Ordner (auch andere Gross-/Kleinschreibung, abschliessender `\`) → Speichern verhindert
+- [x] AC11 Ineinanderliegende Ordner → Speichern verhindert
+- [x] AC12 Leere Felder → beide als Pflichtfeld markiert, nichts gespeichert
+- [x] AC13 Speichern → Toast „Einstellungen gespeichert", Werte nach Neuladen erhalten, Knopf „Zur Hauptansicht"
+- [x] AC14 Gespeicherte Ordner werden bei jedem Aufruf neu geprüft
+- [x] AC15 Gelöschter Ordner → Umleitung + „Ordner nicht mehr gefunden: [Pfad]"
+
+#### API-Schlüssel
+- [x] AC16 Schlüssel vorhanden → „API-Schlüssel gefunden", Schlüssel nirgends sichtbar
+- [x] AC17 Kein Schlüssel → Meldung mit `.env.local`-Hinweis, Kurzanleitung automatisch aufgeklappt
+- [x] AC18 Erfolg → „Verbindung erfolgreich"
+- [x] AC19 Ungültiger Schlüssel → „API-Schlüssel wurde abgelehnt …"
+- [x] AC20 Kein Guthaben → „Kein Guthaben auf dem API-Konto …"
+- [x] AC21 Nicht erreichbar → „Claude ist nicht erreichbar …"
+- [x] AC22 Ladezustand „Teste Verbindung …", Knopf deaktiviert
+- [x] AC23 Beim Öffnen/Start kein API-Aufruf
+
+> Hinweis: AC18–AC21 im Browser mit simulierter Server-Antwort geprüft; die Zuordnung der echten SDK-Fehler (401/403/402/400 „credit balance"/Netzwerk/Timeout) ist durch Integrationstests abgedeckt. Ein echter Aufruf gegen die Claude-API wurde bewusst nicht gemacht (Kosten) – bitte einmal manuell „Verbindung testen" klicken.
+
+### Edge Cases Status
+- [x] EC1 Pfad mit Anführungszeichen / Leerzeichen / abschliessendem `\` → bereinigt gespeichert
+- [x] EC2 Pfad auf Datei → „Pfad ist kein Ordner"
+- [x] EC3 `C:\Scans\` = `c:\scans` (über AC10 geprüft)
+- [x] EC4 Leerer Eingangsordner → „0 PDFs", gültig
+- [ ] EC5 OneDrive „Dateien bei Bedarf" – nicht testbar ohne Online-only-Ordner; laut Spec erst PROJ-2/3 relevant
+- [x] EC6 Ordner gelöscht während Nutzung → beim nächsten Aufruf erkannt (AC15)
+- [ ] EC7 Netzlaufwerk / UNC-Pfad – erreichbar: funktioniert (`\\fritz.box\…`, 0,2 s); **nicht erreichbar: siehe BUG-1**
+- [x] EC8 Hinweis „Nach Änderung Tool neu starten" vorhanden
+- [x] Zusatz: relativer Pfad → „Bitte einen vollständigen Pfad angeben"
+- [x] Zusatz: Schreibschutz-*Attribut* auf Ordner → gilt korrekt als gültig (blockiert unter Windows das Schreiben in Ordner nicht)
+
+### Responsive
+- [x] 375 px, 768 px, 1440 px: kein horizontales Scrollen, alle Bedienelemente sichtbar (alle 4 Browser-Profile)
+
+### Security Audit Results
+- [x] Zugriff aus dem Heimnetz: Server lauscht nur auf 127.0.0.1 (über LAN-IP nicht erreichbar)
+- [x] CSRF: fremder `Origin`, `Origin: null`, `Origin: http://localhost.evil.example`, `Sec-Fetch-Site: cross-site`, Formular-POST mit `text/plain` → alle 403
+- [x] DNS-Rebinding: fremder `Host`-Header → 403
+- [x] Secrets: API-Schlüssel in keiner API-Antwort; Client-Bundle enthält nur Hilfetexte (`ANTHROPIC_API_KEY=sk-ant-…`), kein echter Schlüssel
+- [x] Input-Validierung: relative Pfade, falscher `kind`, > 1024 Zeichen, kaputtes JSON → 400; falsche HTTP-Methode → 405
+- [x] XSS: Pfad `<script>…</script>` wird als Text ausgegeben (React-Escaping), kein Ausführen
+- [x] Security-Header: `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy` gesetzt
+- [ ] Andere lokale Ports als Origin erlaubt → siehe BUG-2 (Low)
+- [x] Rate Limiting: nicht vorhanden; vertretbar, da nur lokal. Verbindungstest-Knopf ist während des Tests gesperrt.
+
+### Bugs Found
+
+#### BUG-1: Nicht erreichbares Netzlaufwerk blockiert das Tool ~40 Sekunden
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Eingangsordner auf einen Netzwerkpfad setzen (z. B. `\\192.168.150.250\share\Scans` oder NAS ausschalten)
+  2. Hauptseite oder Einstellungsseite öffnen bzw. Pfad eintippen
+  3. Expected: schnelle Meldung „Netzwerkpfad nicht erreichbar" (wenige Sekunden)
+  4. Actual: Seite lädt bzw. „Prüfe Ordner …" ~42 s (gemessen), danach „Ordner nicht gefunden" mit Knopf „Ordner anlegen" – irreführend, Anlegen dauert erneut ~40 s und schlägt fehl
+- **Relevanz:** hoch für diesen Nutzer – der Eingang liegt auf der Fritz!Box-NAS
+- **Priority:** Fix in next sprint (vor PROJ-2 sinnvoll, da die Eingangsliste denselben Pfad liest)
+
+#### BUG-2: Origin-Prüfung erlaubt andere lokale Ports
+- **Severity:** Low
+- **Steps to Reproduce:** `GET /api/settings` mit `Origin: http://127.0.0.1:8080` → 200
+- **Expected:** nur der eigene Port (3000) bzw. der Port des Host-Headers
+- **Risiko:** nur relevant, wenn eine andere lokal laufende Web-App bösartigen Code ausliefert
+- **Priority:** Nice to have
+
+#### BUG-3: Zu langer Pfad liefert Meldung „Pflichtfeld"
+- **Severity:** Low
+- **Steps to Reproduce:** `PUT /api/settings` mit Pfad > 1024 Zeichen → 400 mit `message: "Pflichtfeld"`
+- **Expected:** „Pfad zu lang"
+- **Hinweis:** über die Oberfläche praktisch nicht erreichbar
+- **Priority:** Nice to have
+
+### Beobachtungen (keine Bugs von PROJ-1)
+- **Korrektur Implementation Notes:** Die Annahme, `fs.access(W_OK)` erkenne nur das Schreibschutz-Attribut, ist widerlegt – NTFS-Sperren werden korrekt als „Kein Lese-/Schreibzugriff" erkannt.
+- **Für PROJ-5:** Eingang (NAS) und Ablage (C:) liegen auf verschiedenen Laufwerken → „Verschieben" muss als Kopieren + Löschen umgesetzt werden (`rename` schlägt laufwerksübergreifend fehl).
+- **Projekt liegt im OneDrive-Ordner:** ein Build scheiterte einmal an einer gesperrten Datei in `.next` (OneDrive-Synchronisation). Empfehlung: `.next` und `node_modules` von der OneDrive-Synchronisation ausnehmen oder Projekt ausserhalb von OneDrive ablegen.
+- **`npm run lint` defekt** (vorbestehend, Template): `next lint` existiert in Next 16 nicht mehr.
+- **Testinfrastruktur:** `playwright.config.ts` startet jetzt einen isolierten Server (Port 3100, eigene Daten, kein Schlüssel) statt den Dev-Server wiederzuverwenden; Firefox und Desktop Safari ergänzt.
+
+### Summary
+- **Acceptance Criteria:** 23/23 passed
+- **Edge Cases:** 8/10 ok, 1 nicht testbar (EC5), 1 mit Bug (EC7 → BUG-1)
+- **Bugs Found:** 3 total (0 critical, 0 high, 1 medium, 2 low)
+- **Security:** Pass (1 Low-Finding)
+- **Production Ready:** YES (keine Critical/High-Bugs)
+- **Recommendation:** Freigeben; BUG-1 vor PROJ-2 beheben, da der Eingang auf dem NAS liegt
 
 ## Deployment
 _To be added by /deploy_
