@@ -1,6 +1,6 @@
 # PROJ-2: Eingangsliste
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -265,7 +265,97 @@ _Stand 2026-11-21 – /backend_
 **Live geprüft** (echtes NAS `\\fritz.box\FRITZ.NAS\FRITZ\Scanner`): `GET /api/inbox` in 0,08 s, liefert `CHENGPR006_004617.pdf` (2,5 MB, 13.11.2026); Hauptseite in 0,45 s; fremder Origin → 403.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Tested:** 2026-11-21
+**App URL:** http://127.0.0.1:3000 (live mit NAS) · http://127.0.0.1:3100 (isolierter E2E-Server)
+**Tester:** QA Engineer (AI)
+**Browser:** Chromium 145, Firefox 146, WebKit 26 (Desktop Safari), WebKit iPhone 13
+
+### Automatisierte Tests
+- **Vitest:** 91/91 grün – neu: 9 Hook-Tests für `useInbox` (`src/hooks/use-inbox.test.ts`: Intervall, Pause im Hintergrund, Sofort-Aktualisierung bei Rückkehr, „neu"-Markierung inkl. 60 s, letzter Stand bei „nicht erreichbar"/Serverfehler, keine parallelen Abfragen)
+- **Playwright:** `tests/PROJ-2-eingangsliste.spec.ts` – 27 Tests × 4 Browser-Profile = 108 Läufe: **100 grün, 8 rot** (= 2 Tests × 4 Browser, beide BUG-1); PROJ-1-Suite als Regression: 128/128 grün
+- Timer-Tests (AC13/AC16) zusätzlich 3× wiederholt in allen Browsern: 24/24 grün
+
+### Acceptance Criteria Status
+
+#### Liste & Inhalt
+- [x] AC1 Name, Datum/Uhrzeit (`21.11.2026, 09:35`), Grösse; keine Konsolen-/Hydration-Fehler
+- [x] AC2 Älteste zuerst
+- [x] AC3 „seit X Tagen" ab 7 Tagen, darunter keine Markierung
+- [x] AC4 Anzahl im Kopf „Eingang (3)"
+- [x] AC5 Unterordner, JPG, `~$…`, `.versteckt.pdf`, `.pdf.part` ignoriert
+- [x] AC6 `.PDF` wird angezeigt
+
+#### Leerer Eingang
+- [x] AC7 „Keine neuen Scans – alles abgelegt 🎉" + Pfad, „Eingang (0)"
+
+#### Auswahl
+- [x] AC8 Ältester Scan beim Öffnen ausgewählt
+- [x] AC9 Klick wählt aus
+- [x] AC10 ↑/↓ wechseln, an den Enden bleibt die Auswahl stehen (Klick fokussiert die Liste, Tastatur funktioniert danach direkt)
+- [ ] **AC11 BUG-1:** Verschwindet der ausgewählte Scan, springt die Auswahl auf den **ältesten** statt auf den nächsten (bzw. vorherigen)
+- [x] AC12 Auswahl bleibt bei Aktualisierung mit neuen Scans erhalten
+
+#### Aktualisierung
+- [x] AC13 Automatische Aktualisierung nach 30 s
+- [x] AC14 Neuer Scan erscheint an richtiger Stelle mit „neu"; Auswahl entfernt die Markierung
+- [x] AC15 „Aktualisieren" mit Ladezustand (deaktiviert, Spinner)
+- [x] AC16 Im Hintergrund keine Abfrage (90 s geprüft), beim Zurückkehren sofort
+
+#### Dateien im Schreibvorgang
+- [x] AC17 Frisch geschriebene Datei erscheint erst nach ≥ 5 s Stillstand
+
+#### Fehlerfälle
+- [x] AC18 Ordner weg / NAS nicht erreichbar → letzter Stand ausgegraut, Hinweis mit Uhrzeit „… – letzter Stand von HH:MM. Neuer Versuch läuft automatisch."
+- [x] AC19 Ordner wieder da → Hinweis verschwindet, Liste wieder normal
+- [x] AC20 Keine Umleitung auf Einstellungen während der Arbeit
+- [x] AC21 Server antwortet nicht → „Liste konnte nicht aktualisiert werden – letzter Stand von …", Liste bleibt. *Hinweis:* Da die erste Liste mit der Seite kommt, erscheint der Zustand „Liste konnte nicht geladen werden" + „Erneut versuchen" praktisch nur, wenn schon die Seite nicht lädt; der Knopf „Aktualisieren" übernimmt die Rolle von „Erneut versuchen".
+
+### Edge Cases Status
+- [x] 210 Scans: Liste scrollt, ↓ hält Auswahl im sichtbaren Bereich
+- [x] Gleicher Zeitstempel → stabile Reihenfolge nach Name (auch nach Aktualisierung)
+- [ ] Umbenannte Datei: erscheint korrekt als neuer Eintrag, **Auswahl rückt aber nicht nach (BUG-1)**
+- [x] Sehr lange Namen gekürzt, kein horizontales Scrollen (375 px)
+- [x] 0-Byte-Datei: wird angezeigt (Öffnen → PROJ-3)
+- [x] Datum in der Zukunft: erscheint nach zweiter Beobachtung, keine „seit"-Markierung
+- [x] Langsames/fehlendes NAS: keine Blockade (Fix aus PROJ-1 greift, ~2 s)
+- [x] Eingangsordner geändert → neuer Ordner beim nächsten Aufruf (Ordner wird bei jeder Abfrage aus den Einstellungen gelesen)
+- [ ] Nicht testbar ohne echten Scan: setzt die Fritz!Box die Änderungszeit während des Schreibens laufend? (offene Frage bleibt offen – bitte einmal mehrseitig scannen und beobachten, ob ein halbes PDF auftaucht)
+
+### Responsive
+- [x] 375 / 768 / 1440 px in allen 4 Browser-Profilen: Liste bedienbar, kein horizontales Scrollen
+
+### Security Audit Results
+- [x] Nur lokal: fremder Host (DNS-Rebinding), fremder Origin, `Sec-Fetch-Site: cross-site` → 403; POST → 405
+- [x] Kein Ordner-Durchsuchen: Query-Parameter `?path=…` wird ignoriert, es wird nur der gespeicherte Eingang gelistet (Integrationstest + live)
+- [x] XSS: Dateiname `<img src=x onerror=alert(1)>.pdf` (simulierte NAS-Antwort) wird als Text angezeigt, kein Skript ausgeführt
+- [x] Keine sensiblen Daten: Antwort enthält nur Ordnerpfad, Dateinamen, Grösse, Datum
+- [x] Last: 20 Abfragen direkt hintereinander je 0,07–0,12 s gegen das echte NAS, keine Fehler; Oberfläche verhindert parallele Abfragen
+
+### Bugs Found
+
+#### BUG-1: Auswahl springt auf den ältesten statt auf den nächsten Scan
+- **Severity:** Medium
+- **Steps to Reproduce:**
+  1. Drei Scans im Eingang (1, 2, 3), Scan 2 anklicken
+  2. Scan 2 im Explorer löschen (oder später: mit PROJ-5 ablegen), „Aktualisieren"
+  3. Expected: Scan 3 ist ausgewählt (beim letzten Scan: der vorherige)
+  4. Actual: Scan 1 (der älteste) ist ausgewählt – in allen 4 Browsern
+- **Ursache (Hinweis für Entwicklung):** `inbox-workspace.tsx` ruft die Auswahl-Regel in einem React-Updater auf (`setSelected(current => reconcileSelection(prevIds.current, …))`) und überschreibt `prevIds.current` direkt danach. Der Updater läuft erst beim nächsten Rendern und sieht dann bereits die *neue* Liste als „vorherige" → Regel fällt auf „ältester" zurück. Die Regel selbst (`inbox-selection.ts`) ist korrekt (Unit-Tests grün).
+- **Auswirkung:** Gering beim Abarbeiten von oben nach unten (ältester = nächster); spürbar, sobald man einen Scan aus der Mitte bearbeitet – nach dem Ablegen (PROJ-5) springt die Auswahl dann nach oben.
+- **Priority:** Vor PROJ-5 beheben (kleiner Fix); E2E-Tests (AC11, „Umbenannte Datei") prüfen ihn bereits und werden nach dem Fix grün.
+
+### Beobachtungen (keine Bugs)
+- Dateien mit Windows-Attribut „versteckt" und Endung `.pdf` werden angezeigt – bewusste Entscheidung (Ignorieren nur per Namensmuster, siehe Technical Decisions).
+- Testinfrastruktur: Server-gerenderte Seite ist sichtbar, bevor das Browser-JavaScript läuft – Timer-Tests warten deshalb auf `networkidle` (ohne das waren sie in Firefox/Safari instabil). Kein App-Fehler.
+- Live mit NAS: echter Scan `CHENGPR006_004617.pdf` wird angezeigt, Abfrage 0,08 s.
+
+### Summary
+- **Acceptance Criteria:** 20/21 passed (AC11 → BUG-1)
+- **Edge Cases:** 7/9 ok, 1 mit Bug (BUG-1), 1 nur mit echtem Scan prüfbar
+- **Bugs Found:** 1 total (0 critical, 0 high, 1 medium, 0 low)
+- **Security:** Pass
+- **Production Ready:** YES nach Regel (keine Critical/High) – **Empfehlung: BUG-1 vor PROJ-5 beheben**, da das Ablegen genau diese Regel nutzt
 
 ## Deployment
 _To be added by /deploy_
