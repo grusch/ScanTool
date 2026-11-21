@@ -148,15 +148,29 @@ test.describe('PROJ-3 Anzeige', () => {
 
   test('AC6: Leerer Eingang → „Kein Scan ausgewählt"', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByText('Kein Scan ausgewählt')).toBeVisible()
+    // Preview (PROJ-3) and suggestions (PROJ-4) both show the empty state
+    await expect(page.getByText('Kein Scan ausgewählt')).toHaveCount(2)
+    await expect(page.getByText('Kein Scan ausgewählt').first()).toBeVisible()
     await expect(page.getByTestId('preview-scroll')).toHaveCount(0)
   })
 })
 
 test.describe('PROJ-3 Zoom', () => {
-  test('AC7: Start mit „Breite anpassen" – Seitenbreite = Spaltenbreite, kein seitliches Scrollen', async ({ page }) => {
+  test('AC7: Start mit „Ganze Seite" – ganze Seite sichtbar, kein seitliches Scrollen', async ({ page }) => {
     await scan('a4.pdf', [A4], 10)
     await openAndWait(page)
+    await expect(btn(page, 'Ganze Seite')).toHaveAttribute('aria-pressed', 'true')
+    const view = await scroller(page).evaluate((el) => ({ w: el.clientWidth, h: el.clientHeight, sw: el.scrollWidth }))
+    const page1 = await pageBox(page, 1)
+    expect(page1.height).toBeLessThanOrEqual(view.h - 32 + 1)
+    expect(page1.width).toBeLessThanOrEqual(view.w - 32 + 1)
+    expect(view.sw).toBeLessThanOrEqual(view.w)
+  })
+
+  test('AC7b: „Breite anpassen" – Seitenbreite = Spaltenbreite, kein seitliches Scrollen', async ({ page }) => {
+    await scan('a4.pdf', [A4], 10)
+    await openAndWait(page)
+    await btn(page, 'Breite anpassen').click()
     await expect(btn(page, 'Breite anpassen')).toHaveAttribute('aria-pressed', 'true')
     const inner = await scroller(page).evaluate((el) => ({ cw: el.clientWidth, sw: el.scrollWidth }))
     const box = await pageBox(page, 1)
@@ -180,9 +194,11 @@ test.describe('PROJ-3 Zoom', () => {
     await expect(btn(page, 'Verkleinern')).toBeDisabled()
   })
 
-  test('AC9: „Ganze Seite" passt die Seite vollständig ein', async ({ page }) => {
+  test('AC9: „Ganze Seite" passt die Seite nach dem Zoomen wieder vollständig ein', async ({ page }) => {
     await scan('a4.pdf', [A4], 10)
     await openAndWait(page)
+    await btn(page, 'Vergrössern').click()
+    await btn(page, 'Vergrössern').click()
     await btn(page, 'Ganze Seite').click()
     await expect(btn(page, 'Ganze Seite')).toHaveAttribute('aria-pressed', 'true')
     const view = await scroller(page).evaluate((el) => ({ w: el.clientWidth, h: el.clientHeight }))
@@ -194,12 +210,11 @@ test.describe('PROJ-3 Zoom', () => {
   test('AC10: „Breite anpassen" stellt nach dem Zoomen wieder auf Spaltenbreite', async ({ page }) => {
     await scan('a4.pdf', [A4], 10)
     await openAndWait(page)
-    const fit = (await pageBox(page, 1)).width
-    await btn(page, 'Vergrössern').click()
-    await btn(page, 'Vergrössern').click()
-    expect((await pageBox(page, 1)).width).toBeGreaterThan(fit + 10)
+    const cw = await scroller(page).evaluate((el) => el.clientWidth)
+    for (let i = 0; i < 4; i++) await btn(page, 'Vergrössern').click()
+    expect((await pageBox(page, 1)).width).toBeGreaterThan(cw - 32 + 10)
     await btn(page, 'Breite anpassen').click()
-    expect(Math.abs((await pageBox(page, 1)).width - fit)).toBeLessThan(2)
+    expect(Math.abs((await pageBox(page, 1)).width - (cw - 32))).toBeLessThan(3)
   })
 
   test('AC11: Strg + Mausrad über der Vorschau zoomt die Vorschau', async ({ page, isMobile }) => {
@@ -227,7 +242,7 @@ test.describe('PROJ-3 Zoom', () => {
     await option(page, 'zwei.pdf').click()
     await expect(page.getByLabel('Vorschau: zwei.pdf')).toBeVisible()
     await expect(canvasOf(page, 1)).toBeVisible()
-    await expect(btn(page, 'Breite anpassen')).toHaveAttribute('aria-pressed', 'true')
+    await expect(btn(page, 'Ganze Seite')).toHaveAttribute('aria-pressed', 'true')
     await expect(zoomValue(page)).toHaveText(fitPercent)
     const box = await pageBox(page, 1)
     expect(box.height).toBeGreaterThan(box.width) // portrait again = not rotated
@@ -453,6 +468,7 @@ test.describe('PROJ-3 Edge Cases', () => {
   test('EC: Querformat-Seite wird bei „Breite anpassen" auf Spaltenbreite eingepasst', async ({ page }) => {
     await scan('quer.pdf', [A4_LANDSCAPE], 10)
     await openAndWait(page)
+    await btn(page, 'Breite anpassen').click()
     const cw = await scroller(page).evaluate((el) => el.clientWidth)
     const box = await pageBox(page, 1)
     expect(box.width).toBeGreaterThan(box.height)

@@ -2,7 +2,7 @@
 
 ## Status: Deployed
 **Created:** 2026-11-21
-**Last Updated:** 2026-11-21
+**Last Updated:** 2026-11-21 (Standard-Zoom „Ganze Seite")
 
 ## Dependencies
 - Requires: PROJ-1 (Einstellungen & Setup) – gültiger Eingangsordner
@@ -40,12 +40,13 @@
 - [ ] Angenommen kein Scan ist ausgewählt (z. B. leerer Eingang), wenn die Hauptansicht angezeigt wird, dann zeigt die mittlere Spalte den Platzhalter „Kein Scan ausgewählt"
 
 ### Zoom
-- [ ] Angenommen ein Scan wird neu angezeigt, wenn er erscheint, dann ist er auf „Breite anpassen" eingestellt (Seitenbreite = Spaltenbreite, kein seitliches Scrollen)
+- [ ] Angenommen ein Scan wird neu angezeigt, wenn er erscheint, dann ist er auf „Ganze Seite" eingestellt (Seite vollständig sichtbar, kein seitliches Scrollen)
+- [ ] Angenommen ein Scan wird angezeigt, wenn der Nutzer „Breite anpassen" wählt, dann wird die Seitenbreite auf die Spaltenbreite eingepasst (kein seitliches Scrollen)
 - [ ] Angenommen ein Scan wird angezeigt, wenn der Nutzer „+" bzw. „−" klickt, dann wird stufenweise vergrössert bzw. verkleinert (Bereich 50 % – 300 %) und der aktuelle Wert angezeigt (z. B. „125 %"); an den Grenzen ist der jeweilige Knopf deaktiviert
 - [ ] Angenommen ein Scan wird angezeigt, wenn der Nutzer „ganze Seite" wählt, dann wird die aktuelle Seite vollständig in die Spalte eingepasst (Höhe und Breite sichtbar)
 - [ ] Angenommen der Nutzer hat gezoomt, wenn er „Breite anpassen" wählt, dann wird wieder auf Spaltenbreite eingepasst
 - [ ] Angenommen der Mauszeiger ist über der Vorschau, wenn der Nutzer Strg + Mausrad betätigt, dann zoomt die Vorschau (nicht die ganze Browserseite)
-- [ ] Angenommen der Nutzer hat gezoomt oder gedreht, wenn er einen anderen Scan auswählt, dann startet dieser wieder mit „Breite anpassen" und ohne Drehung
+- [ ] Angenommen der Nutzer hat gezoomt oder gedreht, wenn er einen anderen Scan auswählt, dann startet dieser wieder mit „Ganze Seite" und ohne Drehung
 
 ### Drehen
 - [ ] Angenommen ein Scan wird angezeigt, wenn der Nutzer auf „90° links" klickt, dann wird die Ansicht um 90° gegen den Uhrzeigersinn gedreht
@@ -101,7 +102,8 @@
 | Decision | Rationale | Date |
 |----------|-----------|------|
 | Alle Seiten untereinander (Endlos-Scroll) statt seitenweisem Blättern; zusätzlich Seitenzähler und Sprungknöpfe | Rechnungen haben meist 1–2 Seiten – alles auf einen Blick ohne Klicken; Sprungknöpfe helfen bei längeren Dokumenten | 2026-11-21 |
-| Standard-Zoom „Breite anpassen", zusätzlich „ganze Seite", „+"/„−" (50–300 %) und Strg + Mausrad | Beträge/Daten gut lesbar ohne seitliches Scrollen; „ganze Seite" für den Layout-Überblick (vom Nutzer gewünscht) | 2026-11-21 |
+| Zoom: „Breite anpassen", „ganze Seite", „+"/„−" (50–300 %) und Strg + Mausrad | Beträge/Daten gut lesbar ohne seitliches Scrollen; „ganze Seite" für den Layout-Überblick (vom Nutzer gewünscht) | 2026-11-21 |
+| Standard beim Öffnen: „Ganze Seite" statt „Breite anpassen" (nach erstem Gebrauch geändert) | Nutzer möchte jede Seite auf einen Blick sehen; Details per Zoom bzw. „Breite anpassen" | 2026-11-21 |
 | Zoom und Drehung werden beim Scan-Wechsel zurückgesetzt | Jeder Scan startet vorhersehbar; kein Merken nötig, hält das MVP einfach | 2026-11-21 |
 | Drehen nur in der Ansicht, Datei bleibt unverändert | PRD schliesst PDF-Bearbeitung aus; die KI-Analyse (PROJ-4) ist unabhängig von der Anzeige-Ausrichtung | 2026-11-21 |
 | Drei Dreh-Knöpfe: „90° links", „90° rechts", „180°" (wirken relativ zur aktuellen Lage) | Vom Nutzer gewünscht: jede Ausrichtung mit einem Klick, kopfüber gescannte Seiten direkt mit „180°" | 2026-11-21 |
@@ -261,6 +263,8 @@ Bereits angezeigte Seiten bleiben sichtbar, wenn das NAS danach wegfällt. Ein F
 - Geprüft im Dev-Server mit simulierter Server-Antwort und echtem 2-seitigem Scan vom NAS: Anzeige, Seitenzähler, Zoom (80 % → 100 % per Strg + Mausrad), Ganze Seite, Drehen, 375 px ohne seitliches Scrollen, Fehlerzustände (beschädigt, nicht erreichbar, nicht mehr da → Liste aktualisiert).
 - Ergänzt mit dem Backend: Fehlergrund „kein Zugriff" (Windows-Berechtigung) mit eigener Meldung und „Erneut versuchen".
 
+**Änderung nach Deployment (2026-11-21):** Standard-Zoom beim Öffnen ist jetzt „Ganze Seite" (Nutzerwunsch). E2E-Tests AC7 (neu: Start „Ganze Seite" + AC7b „Breite anpassen"), AC9, AC10, AC12 und Querformat-Edge-Case angepasst.
+
 ## Implementation Notes (Backend)
 **Gebaut (2026-11-21):**
 - `GET /api/inbox/file?name=<Dateiname>` (`src/app/api/inbox/file/route.ts`) – liefert genau einen Scan aus dem **gespeicherten** Eingangsordner, nur lesend.
@@ -297,7 +301,7 @@ Bereits angezeigte Seiten bleiben sichtbar, wenn das NAS danach wegfällt. Ein F
 - [x] AC6 Leerer Eingang → „Kein Scan ausgewählt"
 
 #### Zoom
-- [x] AC7 Start „Breite anpassen", kein seitliches Scrollen
+- [x] AC7 Start „Breite anpassen", kein seitliches Scrollen *(nach QA geändert: Start jetzt „Ganze Seite", siehe Decision Log)*
 - [x] AC8 „+"/„−" in Stufen 50–300 %, an den Grenzen deaktiviert
 - [x] AC9 „Ganze Seite" passt vollständig ein
 - [x] AC10 „Breite anpassen" nach Zoom

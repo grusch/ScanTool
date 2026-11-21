@@ -66,7 +66,8 @@ export function PageSkeleton({ className }: { className?: string }) {
 export function PdfViewer({ blob, newTabUrl, onError }: PdfViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [pages, setPages] = useState<PageInfo[] | null>(null)
-  const [mode, setMode] = useState<ZoomMode>({ kind: "fit-width" })
+  // Start: whole page visible (user request 2026-11-21); "Breite anpassen" on demand
+  const [mode, setMode] = useState<ZoomMode>({ kind: "fit-page" })
   const [rotation, setRotation] = useState<Rotation>(0)
   const [view, setView] = useState({ width: 0, height: 0 })
   const [scrollTop, setScrollTop] = useState(0)
