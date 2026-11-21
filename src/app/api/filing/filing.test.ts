@@ -198,6 +198,75 @@ describe("POST /api/filing – Scan", () => {
   })
 })
 
+describe("POST /api/filing – Papierkorb („Löschen“)", () => {
+  const trash = (fileName: string | null = null) => ({ scan: "a.pdf", target: "papierkorb", fileName })
+
+  it("moves into <Eingang>\\Papierkorb\\ under the original name with its date (folder created, never deleted)", async () => {
+    const src = await scan("a.pdf")
+    const before = await sha(src)
+    const { status, body } = await file(trash())
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ ok: true, status: "filed", location: "Scanner\\Papierkorb\\a.pdf", renamed: false })
+    expect(body.undoToken).toEqual(expect.any(String))
+    const moved = path.join(inbox, "Papierkorb", "a.pdf")
+    expect(await sha(moved)).toBe(before)
+    expect(Math.floor((await fs.stat(moved)).mtimeMs)).toBe(Math.floor(SCAN_DATE.getTime()))
+    expect(await exists(src)).toBe(false)
+    expect(await ls(inbox)).toEqual(["Papierkorb"])
+  })
+
+  it("ignores a sent file name – also an invalid one", async () => {
+    await scan("a.pdf")
+    const { body } = await file(trash("..\\..\\evil:name.pdf"))
+    expect(body).toMatchObject({ ok: true, location: "Scanner\\Papierkorb\\a.pdf" })
+    expect(await ls(path.join(inbox, "Papierkorb"))).toEqual(["a.pdf"])
+  })
+
+  it("never overwrites in Papierkorb, numbers the name instead", async () => {
+    await fs.mkdir(path.join(inbox, "Papierkorb"))
+    await fs.writeFile(path.join(inbox, "Papierkorb", "a.pdf"), "anders")
+    await scan("a.pdf")
+    expect((await file(trash())).body).toMatchObject({ location: "Scanner\\Papierkorb\\a_2.pdf", renamed: true })
+    expect(await fs.readFile(path.join(inbox, "Papierkorb", "a.pdf"), "utf8")).toBe("anders")
+  })
+
+  it("an identical file already in Papierkorb → only the inbox is cleaned", async () => {
+    await fs.mkdir(path.join(inbox, "Papierkorb"))
+    await fs.writeFile(path.join(inbox, "Papierkorb", "a.pdf"), "%PDF-1.4 a.pdf")
+    const src = await scan("a.pdf")
+    expect((await file(trash())).body).toMatchObject({ ok: true, status: "already_filed", location: "Scanner\\Papierkorb\\a.pdf" })
+    expect(await exists(src)).toBe(false)
+    expect(await ls(path.join(inbox, "Papierkorb"))).toEqual(["a.pdf"])
+  })
+
+  it("works without a reachable archive folder (only the inbox is involved)", async () => {
+    await fs.rm(archive, { recursive: true })
+    await scan("a.pdf")
+    expect((await file(trash())).body).toMatchObject({ ok: true, status: "filed" })
+  })
+
+  it("a missing scan → not_found, nothing created", async () => {
+    const { status, body } = await file(trash())
+    expect(status).toBe(404)
+    expect(body).toEqual({ ok: false, code: "not_found" })
+    expect(await exists(path.join(inbox, "Papierkorb"))).toBe(false)
+  })
+
+  it("„Rückgängig“ brings the scan back from Papierkorb with its date", async () => {
+    const src = await scan("a.pdf")
+    const { body } = await file(trash())
+    expect((await undo(body.undoToken)).body).toEqual({ ok: true, name: "a.pdf", renamed: false })
+    expect(Math.floor((await fs.stat(src)).mtimeMs)).toBe(Math.floor(SCAN_DATE.getTime()))
+    expect(await ls(path.join(inbox, "Papierkorb"))).toEqual([])
+  })
+
+  it("rejects an unknown target", async () => {
+    await scan("a.pdf")
+    expect((await file({ scan: "a.pdf", target: "loeschen", fileName: null })).status).toBe(400)
+    expect(await ls(inbox)).toEqual(["a.pdf"])
+  })
+})
+
 describe("POST /api/filing – Eingaben & Schutz", () => {
   it("returns 404 for a scan that is gone", async () => {
     expect(await file(invoice())).toEqual({ status: 404, body: { ok: false, code: "not_found" } })

@@ -15,7 +15,7 @@ const STATUS: Record<FilingErrorCode, number> = {
 }
 
 /**
- * POST /api/filing { scan, target: "rechnung" | "scan", fileName, year? } – files one scan.
+ * POST /api/filing { scan, target: "rechnung" | "scan" | "papierkorb", fileName, year? } – files one scan.
  * Target folders come from the saved settings only; the request contains names, never paths.
  */
 export async function POST(req: Request) {

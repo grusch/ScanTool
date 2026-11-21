@@ -1,5 +1,6 @@
 // Files a scan from the inbox (PROJ-5): "rechnung" → <Ablage>\Rechnungen\<Jahr>\,
-// "scan" → <Eingang>\Abgelegt\. Never overwrites, never loses a file: across drives the
+// "scan" → <Eingang>\Abgelegt\, "papierkorb" (button „Löschen“) → <Eingang>\Papierkorb\ under
+// the original name – ScanTool never deletes a scan for good. Never overwrites, never loses a file: across drives the
 // scan is copied under a temporary name, verified (size + SHA-256), renamed and only then
 // deleted from the inbox. Folders always come from the saved settings, never from the request.
 import { createHash, randomBytes, randomUUID } from "crypto"
@@ -18,6 +19,7 @@ import { readSettings } from "./settings-store"
 
 export const INVOICE_FOLDER = "Rechnungen"
 export const SCAN_FOLDER = "Abgelegt"
+export const TRASH_FOLDER = "Papierkorb"
 /** How long "Rückgängig" stays possible on the server (the message shows ~8 s) */
 export const UNDO_TTL_MS = 10 * 60_000
 /** Upper limit for copying / hashing a scan across the network */
@@ -26,7 +28,7 @@ const MAX_VARIANTS = 999
 
 export const filingRequestSchema = z.object({
   scan: z.string().max(300),
-  target: z.enum(["rechnung", "scan"]),
+  target: z.enum(["rechnung", "scan", "papierkorb"]),
   fileName: z.string().max(300).nullable(),
   year: z.number().int().min(1990).max(2100).optional(),
 })
@@ -132,7 +134,7 @@ interface UndoEntry {
   originalName: string
   atime: Date
   mtime: Date
-  /** Moved within the same folder tree (scan → Abgelegt) – a rename is enough */
+  /** Moved within the same folder tree (scan → Abgelegt, papierkorb → Papierkorb) – a rename is enough */
   sameTree: boolean
   analysis: AnalysisResult | null
   expires: number
@@ -170,7 +172,8 @@ export async function fileScan(input: FilingInput): Promise<FilingResponse> {
   const scan = scanNameSchema.safeParse(input.scan)
   if (!scan.success) return { ok: false, code: "invalid_request" }
   let newName: string | null = null
-  if (input.fileName !== null) {
+  // „Löschen“ always keeps the original name – a sent file name is ignored
+  if (input.fileName !== null && input.target !== "papierkorb") {
     const check = validateFileName(input.fileName)
     if (!check.ok) return { ok: false, code: "invalid_request" }
     newName = check.name
@@ -180,7 +183,7 @@ export async function fileScan(input: FilingInput): Promise<FilingResponse> {
   return withLock(scan.data.toLowerCase(), () => doFile(scan.data, input.target, newName, input.year))
 }
 
-async function doFile(scan: string, target: "rechnung" | "scan", newName: string | null, year?: number): Promise<FilingResponse> {
+async function doFile(scan: string, target: FilingInput["target"], newName: string | null, year?: number): Promise<FilingResponse> {
   const settings = await readSettings()
   if (!settings) return { ok: false, code: "archive_unreachable" }
   const inbox = cleanPath(settings.inboxPath)
@@ -213,8 +216,9 @@ async function doFile(scan: string, target: "rechnung" | "scan", newName: string
     dir = path.join(archive, INVOICE_FOLDER, String(year))
     display = `${INVOICE_FOLDER}\\${year}\\`
   } else {
-    dir = path.join(inbox, SCAN_FOLDER)
-    display = `${path.basename(inbox)}\\${SCAN_FOLDER}\\`
+    const folder = target === "papierkorb" ? TRASH_FOLDER : SCAN_FOLDER
+    dir = path.join(inbox, folder)
+    display = `${path.basename(inbox)}\\${folder}\\`
   }
 
   const finalWanted = newName ?? scan
@@ -238,7 +242,8 @@ async function doFile(scan: string, target: "rechnung" | "scan", newName: string
     }
 
     const filedPath = path.join(dir, chosen.name)
-    const sameTree = target === "scan"
+    // "scan" and "papierkorb" stay inside the inbox folder
+    const sameTree = target !== "rechnung"
     if (sameTree) {
       // Same folder tree on the same drive: a single rename, nothing to copy
       if (await exists(filedPath)) throw new FilingError("unknown")

@@ -322,7 +322,7 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 - Tastenkürzel Strg + Entf (auch aus Eingabefeldern; Standardaktion „Wort löschen“ wird unterdrückt). Entf allein und Strg + Umschalt + Entf tun nichts.
 - `src/hooks/use-filing.ts`: Meldungstexte für den Papierkorb („In den Papierkorb verschoben: …“, „War bereits im Papierkorb – Eingang bereinigt“). Sperre, nächster Scan und „Rückgängig“ laufen über denselben Ablauf wie beim Ablegen.
 - **Tests:** 7 neue Komponententests (immer aktiv + nur Originalname, Strg + Entf aus Eingabefeld, Entf allein/mit Umschalt ignoriert, Sperre gegen Doppelauslösung, identische Datei/Namenskonflikt, Rückgängig, Fehler). Vitest gesamt 302/302, `tsc` ohne Fehler.
-- **Offen für `/backend`:** Der Server kennt `"papierkorb"` noch nicht und antwortet mit `invalid_request` („Ungültiger Dateiname oder Zielordner“). Dabei wird nichts verschoben.
+- ~~Offen für `/backend`~~ → erledigt, siehe Backend-Notizen.
 
 ## Implementation Notes (Backend)
 **Gebaut (2026-11-21):**
@@ -340,6 +340,12 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 **Tests:** `src/app/api/filing/filing.test.ts` – 31 Integrationstests mit echten Dateien in temporären Ordnern: Rechnung (Ordner anlegen, Inhalt + Datum, keine Zwischendateien), Jahr aus der Anfrage, `.pdf` ergänzen, Konflikte `_2`/`_3`/`_2_Garantie`, identische Datei (auch als `_2`), Original gesperrt → copied_not_deleted → zweiter Versuch bereinigt, kaputte Kopie wird erkannt, kein Platz, Ablage fehlt (Stammordner wird nicht angelegt), Scan nach Abgelegt (mit/ohne Namen, Konflikt), 8 ungültige Anfragen ohne Veränderung, NAS unerreichbar < 5 s, gleichzeitige Anfragen = einmal abgelegt, fremde Webseiten 403, Rückgängig (Rechnung inkl. Datum + KI-Vorschlag, Scan, belegter Name → `_2`, Datei weg → gone, unbekannt/abgelaufen, Token nur einmal). Vitest gesamt 272/272.
 
 **Live (mit Zustimmung, eigene Testdatei, NAS → OneDrive):** Ablegen 1,4 s, Inhalt identisch, Datum erhalten, keine Zwischendateien; Rückgängig 0,8 s, Datei wieder im Eingang und aus der Ablage entfernt; Testdatei danach gelöscht. Dabei wurde `Finanzen\Rechnungen6\` neu angelegt (bleibt leer bestehen). Der Nutzer hat zudem selbst einen Brief per „Scan" abgelegt → korrekt in `Scanner\Abgelegt\` mit Originaldatum.
+
+### Erweiterung „Löschen“ (Backend, 2026-11-21)
+- `src/lib/server/filing.ts`: Ziel `"papierkorb"` im Zod-Schema, neue Konstante `TRASH_FOLDER = "Papierkorb"`. Der Ordner wird nur auf dem Server gebildet: `<Eingang>\Papierkorb\`. Ein mitgeschickter Dateiname wird ignoriert, es gilt immer der Originalname. Ablauf wie bei „Scan“: Ordner anlegen, Konflikt `_2`, identische Datei → nur Eingang bereinigen, Umbenennen innerhalb desselben Ordnerbaums (Datum bleibt), Rückgängig-Kennung. Die Ablage (OneDrive) wird dabei nicht geprüft. ScanTool löscht nie endgültig.
+- `POST /api/filing`: Vertrag unverändert, nur `target` kennt zusätzlich `"papierkorb"`. Unbekannte Ziele → 400 `invalid_request`. `/api/filing/undo` unverändert, holt auch aus dem Papierkorb zurück.
+- Die Eingangsliste zeigt den Unterordner `Papierkorb` nicht an (sie listet nur Dateien).
+- **Tests:** 8 neue Integrationstests mit echten Dateien (Originalname + Inhalt + Datum, Ordner angelegt; mitgeschickter, auch ungültiger Name ignoriert; nie überschreiben → `_2`; identische Datei → nur Eingang bereinigt; funktioniert ohne erreichbare Ablage; fehlender Scan → 404, kein Ordner angelegt; Rückgängig inkl. Datum; unbekanntes Ziel → 400). Vitest gesamt 310/310, `tsc` ohne Fehler.
 
 ## QA Test Results
 
