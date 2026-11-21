@@ -1,31 +1,25 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { FileSearch, Sparkles } from "lucide-react"
 import { PdfPreview } from "@/components/preview/pdf-preview"
+import { SuggestionsPanel } from "@/components/suggestions/suggestions-panel"
 import { Card, CardContent } from "@/components/ui/card"
 import { InboxList } from "@/components/inbox/inbox-list"
 import { useInbox } from "@/hooks/use-inbox"
+import { scanKey } from "@/hooks/use-scan-analysis"
 import { moveSelection, reconcileSelection } from "@/lib/inbox-selection"
 import type { InboxResponse } from "@/lib/inbox-types"
+import type { FieldName, SuggestionFields } from "@/lib/suggestion-form"
 
 interface InboxWorkspaceProps {
   /** List rendered by the server with the page (null → loaded in the browser) */
   initialInbox: InboxResponse | null
-}
-
-function Placeholder({ icon: Icon, title, text }: { icon: typeof FileSearch; title: string; text: string }) {
-  return (
-    <Card className="flex h-full min-h-48 flex-col items-center justify-center gap-2 border-dashed p-6 text-center">
-      <Icon className="h-8 w-8 text-muted-foreground" aria-hidden />
-      <p className="font-medium">{title}</p>
-      <p className="max-w-xs break-all text-sm text-muted-foreground">{text}</p>
-    </Card>
-  )
+  /** API key configured (PROJ-1) – without it no AI analysis is started */
+  apiKeyPresent: boolean
 }
 
 /** Three-column work area: inbox list · PDF preview (PROJ-3) · suggestions (PROJ-4/5) */
-export function InboxWorkspace({ initialInbox }: InboxWorkspaceProps) {
+export function InboxWorkspace({ initialInbox, apiKeyPresent }: InboxWorkspaceProps) {
   const state = useInbox(initialInbox)
   const { clearNew } = state
   const files = state.inbox?.files ?? []
@@ -49,6 +43,16 @@ export function InboxWorkspace({ initialInbox }: InboxWorkspaceProps) {
     if (selected) clearNew(selected)
   }, [selected, clearNew])
 
+  // Values the user typed, per scan (name + size + date) – kept while ScanTool is open
+  const [drafts, setDrafts] = useState<Record<string, Partial<SuggestionFields>>>({})
+  const selectedFile = files.find((f) => f.name === selected) ?? null
+  const draftKey = selectedFile ? scanKey(selectedFile) : ""
+  const onFieldChange = useCallback(
+    (field: FieldName, value: string) =>
+      setDrafts((d) => ({ ...d, [draftKey]: { ...d[draftKey], [field]: value } })),
+    [draftKey]
+  )
+
   const onMove = useCallback(
     (delta: number) => setSelected((current) => moveSelection(prevIds.current, current, delta)),
     []
@@ -63,7 +67,13 @@ export function InboxWorkspace({ initialInbox }: InboxWorkspaceProps) {
         </CardContent>
       </Card>
       <PdfPreview selected={selected} onScanMissing={state.refresh} />
-      <Placeholder icon={Sparkles} title="Vorschläge" text="KI-Vorschläge und Ablegen folgen mit PROJ-4/5" />
+      <SuggestionsPanel
+        file={selectedFile}
+        apiKeyPresent={apiKeyPresent}
+        touched={drafts[draftKey] ?? {}}
+        onChange={onFieldChange}
+        onScanMissing={state.refresh}
+      />
     </div>
   )
 }

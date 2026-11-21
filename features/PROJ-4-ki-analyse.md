@@ -1,6 +1,6 @@
 # PROJ-4: KI-Analyse
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -302,6 +302,21 @@ In allen Fällen bleibt das Formular bedienbar. Fehler werden **nicht** gemerkt,
 ### F) Abhängigkeiten (zu installieren)
 - **pdf-lib**: PDF öffnen, Seitenzahl lesen, die ersten 5 Seiten in eine neue Datei kopieren, beschädigte und geschützte PDFs erkennen.
 - Vorhanden und wiederverwendet: `@anthropic-ai/sdk` (Claude API), `zod` (Antwort- und Formularprüfung), `react-hook-form`.
+
+## Implementation Notes (Frontend)
+**Gebaut (2026-11-21):**
+- `src/components/suggestions/suggestions-panel.tsx` – rechte Spalte: Kopf „Vorschläge" mit Status-Abzeichen („KI analysiert …" / „Von KI vorgeschlagen") und Symbol-Knopf „Neu analysieren" (Tooltip); Hinweise (Fehler je Grund mit „Erneut versuchen" bzw. Link zu den Einstellungen, „Kein Rechnungsdokument erkannt", „Nur die ersten 5 Seiten analysiert"); Formular mit Dokumenttyp (Select), Datum, Rechnungsnummer, Lieferant, Beschreibung, Betrag, Währung, Garantie (Monate), Artikel (Textarea, eine Zeile pro Position); Dateiname-Vorschau (live); Hinweis auf PROJ-5; leerer Zustand „Kein Scan ausgewählt".
+- `src/hooks/use-scan-analysis.ts` – startet die Analyse bei Auswahl (nur mit API-Schlüssel), merkt Ergebnisse je Datei-Fingerabdruck (Name + Grösse + Änderungszeit) für die Sitzung, „Neu analysieren" (force) und „Erneut versuchen"; Auswahlwechsel bricht nur das Warten im Browser ab.
+- `src/lib/suggestion-form.ts` (+ 15 Unit-Tests) – Formularfelder, KI-Vorschlag → Text, Zusammenführen (eigene Eingaben gewinnen immer, auch leere), Datumsprüfung TT.MM.JJJJ, **Dateiname-Regel** `buildFileName` (für PROJ-5 wiederverwenden).
+- `src/lib/analysis-types.ts` – gemeinsamer Vertrag mit dem Backend (`POST /api/analysis`, Antwort `{ ok, cached, suggestion, pagesAnalyzed, totalPages, analyzedAt, model }` bzw. `{ ok: false, code }`).
+- `src/lib/analysis-api.ts` – Browser-Client und Meldungstexte je Fehlercode.
+- `inbox-workspace.tsx` – Platzhalter rechts durch `SuggestionsPanel` ersetzt; eigene Eingaben je Scan-Fingerabdruck im Zustand der Arbeitsfläche (bleiben beim Hin- und Herwechseln). `page.tsx` reicht `apiKeyPresent` durch.
+
+**Abweichungen / Hinweise:**
+- Eigene Eingaben gelten als „berührt", sobald getippt wurde – auch ein bewusst geleertes Feld bleibt leer. Nicht berührte Felder zeigen immer den aktuellen KI-Vorschlag; „Neu analysieren" ersetzt daher alle nicht berührten Felder (nicht nur leere) – eigene Eingaben bleiben wie gefordert stehen.
+- Validierung bewusst ohne react-hook-form: die Felder sind frei editierbar, Prüfungen (Datum gültig, Pflichtteile für den Dateinamen) zeigt die Dateiname-Vorschau. Feldprüfung beim Ablegen folgt in PROJ-5.
+- Geprüft im Dev-Server mit simulierter Schnittstelle (keine Kosten): Tippen während der Analyse wird nicht überschrieben, Dateiname inkl. `_Garantie` und Umlauten, „Datum ungültig", 5-Seiten-Hinweis, Eingaben bleiben nach Scan-Wechsel, Fehler „kein Guthaben" mit „Erneut versuchen", 375 px ohne seitliches Scrollen.
+- **Noch offen (Backend):** `POST /api/analysis` existiert noch nicht → bis `/backend` zeigt die Spalte „Der Scan ist nicht mehr im Eingang."
 
 ## QA Test Results
 _To be added by /qa_

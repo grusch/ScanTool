@@ -16,7 +16,7 @@ export default async function Home() {
     <div className="flex w-full flex-col gap-4 px-4 py-4 sm:px-6 lg:h-[calc(100dvh-3.5rem)]">
       {!status.apiKeyPresent && <ApiKeyNotice />}
       {/* First list is rendered with the page → visible immediately, no loading flicker */}
-      <InboxWorkspace initialInbox={await listInbox()} />
+      <InboxWorkspace initialInbox={await listInbox()} apiKeyPresent={status.apiKeyPresent} />
     </div>
   )
 }
