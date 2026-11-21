@@ -16,7 +16,7 @@ ScanTool ist ein lokales Werkzeug, das eingescannte Rechnungen und Garantieschei
 | P0 (MVP) | Eingangsliste: neue PDFs im Eingangsordner anzeigen – PROJ-2 | Planned (Spec) |
 | P0 (MVP) | PDF-Vorschau – PROJ-3 | Planned (Spec) |
 | P0 (MVP) | KI-Analyse: Typ, Datum, Lieferant, Beschreibung, Betrag u. a. vorschlagen – PROJ-4 | Planned (Spec) |
-| P0 (MVP) | Prüfen & Ablegen: Felder bearbeiten, Dateiname bilden, in Zielordner verschieben | Planned |
+| P0 (MVP) | Prüfen & Ablegen: Felder bearbeiten, Dateiname bilden, in Zielordner verschieben – PROJ-5 | Planned (Spec) |
 | P1 | OCR-Modus mit Umschalter KI/OCR | Planned |
 | P1 | Metadaten-Datenbank (Supabase) | Planned |
 | P1 | Suche & Filter über Metadaten | Planned |
