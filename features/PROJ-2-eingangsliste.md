@@ -1,6 +1,6 @@
 # PROJ-2: Eingangsliste
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -81,8 +81,9 @@
 - Tastaturbedienbar (Pfeiltasten, Fokus sichtbar), Liste für Screenreader als Auswahlliste erkennbar
 
 ## Open Questions
-- [ ] Wie lange soll „einige Sekunden" Stabilitätswartezeit konkret sein? (Vorschlag: 5 s – in /architecture festlegen; abhängig davon, wie schnell der Scanner aufs NAS schreibt)
-- [ ] Wie lange bleibt die „neu"-Markierung sichtbar? (Vorschlag: bis zur Auswahl oder max. 1 Minute)
+- [x] Wie lange soll „einige Sekunden" Stabilitätswartezeit konkret sein? → 5 s (siehe Tech Design D); in QA mit echtem Scanner prüfen
+- [x] Wie lange bleibt die „neu"-Markierung sichtbar? → bis zur Auswahl, längstens 60 s
+- [ ] Setzt der Scanner/die Fritz!Box beim Schreiben auf das NAS die Änderungszeit laufend? (Annahme der Stabilitätsprüfung – in QA mit einem mehrseitigen Scan verifizieren; Rückfall über zweite Beobachtung greift sonst nach spätestens 30 s)
 
 ## Decision Log
 
@@ -106,12 +107,117 @@
 ### Technical Decisions
 | Decision | Rationale | Date |
 |----------|-----------|------|
+| Eingangsordner aus gespeicherten Einstellungen, kein Pfad in der Anfrage | Schnittstelle kann keine beliebigen Ordner auflisten | 2026-11-21 |
+| Intervall-Abfrage (30 s) statt Dateisystem-Überwachung | Überwachung auf Netzlaufwerken unter Windows unzuverlässig; Intervall einfach und robust | 2026-11-21 |
+| Stabilität: Änderungszeit ≥ 5 s alt ODER gleiche Grösse/Änderungszeit bei früherer Beobachtung ≥ 5 s zuvor | Keine Zusatzwartezeit; robust gegen abweichende NAS-Uhr | 2026-11-21 |
+| Kennung eines Scans = Dateiname | Im Ordner eindeutig; Umbenennen erscheint korrekt als neuer Scan | 2026-11-21 |
+| Erste Liste serverseitig mit der Seite ausliefern | Anzeige < 1 s, kein Ladeflackern | 2026-11-21 |
+| Auswahlzustand zentral in der Arbeitsfläche, Auswahl-Regeln als reine Funktion | Wird von PROJ-3–5 genutzt; Regeln ohne Browser testbar | 2026-11-21 |
+| Parallele, begrenzte Dateiabfragen + 10-s-Obergrenze, NAS-Vorprüfung aus PROJ-1 | Schnell bei vielen Dateien, ohne NAS zu überlasten; kein Hänger | 2026-11-21 |
+| Ignorieren per Namensmuster (`.`, `~$`, `.tmp`, `.part`) statt Windows-Attribut „versteckt" | Attribut ist ohne Zusatzpaket nicht lesbar; Muster deckt Scanner-/Office-Temporärdateien ab | 2026-11-21 |
+| Keine neuen Pakete | Vorhandene Bausteine reichen | 2026-11-21 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Überblick
+Die Hauptseite wird zur **Arbeitsfläche mit drei Spalten**. PROJ-2 baut die linke Spalte (Eingangsliste) und das Gerüst der Arbeitsfläche; die mittlere (PDF-Vorschau, PROJ-3) und rechte Spalte (Vorschläge, PROJ-4/5) bleiben vorerst Platzhalter. Die **Auswahl** („welcher Scan ist gerade dran") wird zentral in der Arbeitsfläche gehalten, damit PROJ-3 bis PROJ-5 sie direkt nutzen können.
+
+Wiederverwendet aus PROJ-1: Zugangsprüfung der Hauptseite, Einstellungen (Eingangsordner), schnelle NAS-Erreichbarkeitsprüfung + 10-s-Obergrenze, Zugriffsschutz für lokale Anfragen.
+
+### A) Komponenten-Struktur
+
+```
+Hauptseite „/" (Zugangsprüfung aus PROJ-1 bleibt)
++-- Hinweis „API-Schlüssel fehlt" (aus PROJ-1, falls nötig)
++-- Arbeitsfläche (3 Spalten; auf schmalen Bildschirmen untereinander)
+    +-- Linke Spalte: Eingangsliste
+    |   +-- Kopf: „Eingang (3)" + Knopf „Aktualisieren" (mit Ladezustand)
+    |   +-- Hinweisleiste „Eingangsordner nicht erreichbar – letzter Stand von 14:32 …"
+    |   |   (nur bei Verbindungsabbruch; Liste darunter ausgegraut)
+    |   +-- Scrollbare Auswahlliste (per Pfeiltasten bedienbar)
+    |   |   +-- Eintrag je Scan
+    |   |       +-- Dateiname (gekürzt, voller Name als Tooltip)
+    |   |       +-- Scan-Datum + Uhrzeit · Grösse
+    |   |       +-- Markierung „neu" (kurzzeitig) / „seit 9 Tagen" (ab 7 Tagen)
+    |   +-- Leerer Zustand: „Keine neuen Scans – alles abgelegt 🎉" + Pfad
+    |   +-- Fehlerzustand: „Liste konnte nicht geladen werden" + „Erneut versuchen"
+    +-- Mittlere Spalte: Platzhalter „PDF-Vorschau" (PROJ-3) – zeigt vorerst Name des ausgewählten Scans
+    +-- Rechte Spalte: Platzhalter „Vorschläge" (PROJ-4/5)
+```
+
+Verwendete vorhandene shadcn/ui-Bausteine: ScrollArea, Button, Badge, Alert, Tooltip, Skeleton, Card, Separator. Keine neuen Bausteine nötig.
+
+### B) Datenmodell
+
+```
+Eingangsliste (vom Server geliefert, nicht gespeichert):
+- Eingangsordner (Pfad)
+- Zustand: erreichbar / nicht erreichbar / nicht gefunden / kein Zugriff
+- Zeitpunkt der Abfrage
+- Scans (nur fertig geschriebene PDFs), je Scan:
+  - Kennung = Dateiname (im Ordner eindeutig)
+  - Dateiname
+  - Grösse in Bytes
+  - Scan-Datum = letzter Änderungszeitpunkt der Datei
+
+Nur im Browser (flüchtig, nicht gespeichert):
+- Ausgewählter Scan (Kennung)
+- Letzter erfolgreich geladener Stand + Uhrzeit (für die ausgegraute Anzeige)
+- Welche Scans als „neu" markiert sind und seit wann
+
+Nur im Server-Arbeitsspeicher (flüchtig):
+- Zuletzt beobachtete Grösse/Änderungszeit je Datei (für die Erkennung „noch im Schreibvorgang")
+```
+
+Keine Datenbank, keine neue Datei auf der Festplatte.
+
+### C) Server-Schnittstelle (in Worten)
+
+| Schnittstelle | Zweck |
+|---------------|-------|
+| Eingang auflisten | Liest den **gespeicherten** Eingangsordner (kein Pfad aus der Anfrage!), filtert und sortiert die PDFs, liefert Liste + Zustand. Bei unerreichbarem NAS: Zustand „nicht erreichbar" in ~2 s statt Fehler |
+
+Die Hauptseite liefert beim ersten Aufruf die Liste bereits mit (serverseitig geladen) → kein Ladeflackern, Anzeige sofort. Danach aktualisiert der Browser über die Schnittstelle.
+
+### D) Abläufe
+
+**Filtern:** nur Dateien direkt im Ordner, Endung `.pdf` (gross/klein egal); ignoriert werden Unterordner, Dateien beginnend mit `.` oder `~$`, Endungen `.tmp`/`.part`.
+
+**„Noch im Schreibvorgang" (Stabilitätsprüfung, 5 s):** Eine Datei erscheint, sobald ihre letzte Änderung mindestens 5 s zurückliegt. Weil die Uhr des NAS von der des PCs abweichen kann (Edge Case „Datum in der Zukunft"), gilt zusätzlich: Hat der Server die Datei bei einer früheren Abfrage vor ≥ 5 s mit gleicher Grösse und Änderungszeit gesehen, gilt sie ebenfalls als fertig.
+
+**Sortierung:** nach Scan-Datum aufsteigend, bei Gleichstand nach Dateiname → stabile Reihenfolge.
+
+**Aktualisierung im Browser:**
+- alle 30 s, nur wenn der Tab sichtbar ist; beim Zurückkehren in den Tab sofort
+- Knopf „Aktualisieren" löst sofort aus; parallele Abfragen werden vermieden
+- bei Fehler/„nicht erreichbar": letzter Stand bleibt, ausgegraut, mit Uhrzeit; keine Umleitung
+
+**Auswahl-Regeln** (als eigene, separat testbare Logik):
+- Start: ältester Scan
+- Ausgewählter Scan existiert nach Aktualisierung noch → bleibt ausgewählt
+- Ausgewählter Scan verschwunden → der Scan, der jetzt an seiner Position steht (= nächster); war es der letzte → der neue letzte (= vorheriger); Liste leer → keine Auswahl
+- ↑/↓ bewegen die Auswahl, am Anfang/Ende bleibt sie stehen; ausgewählter Eintrag wird in den sichtbaren Bereich gescrollt
+
+**„Neu"-Markierung:** Scans, die nach dem ersten Laden hinzukommen, sind „neu", bis sie ausgewählt werden, längstens 60 s.
+
+**„Seit X Tagen":** im Browser aus Scan-Datum und heutigem Datum berechnet; ab 7 Tagen angezeigt; bei Datum in der Zukunft keine Markierung.
+
+### E) Technische Entscheidungen (Begründung)
+
+- **Ordner kommt aus den gespeicherten Einstellungen, nicht aus der Anfrage:** Die Schnittstelle kann so nur den eingestellten Eingang auflisten – kein „Ordner-Durchsuchen" beliebiger Pfade, auch nicht bei einer manipulierten Anfrage.
+- **Abfrage per Intervall (30 s) statt Ordner-Überwachung:** Dateisystem-Überwachung ist auf Netzlaufwerken (NAS) unter Windows unzuverlässig und hält eine Dauerverbindung offen. Ein Intervall ist einfach, robust und deckt die Anforderung ab.
+- **Stabilitätsprüfung über Änderungszeit + Beobachtung:** Ohne zusätzliche Wartezeit beim Laden (keine doppelte Abfrage nötig) und trotzdem robust gegen abweichende NAS-Uhren.
+- **Erste Liste serverseitig mitliefern:** erfüllt „< 1 s bis zur Anzeige" und vermeidet einen leeren Zwischenzustand.
+- **Auswahl zentral in der Arbeitsfläche:** PROJ-3 (Vorschau) und PROJ-4/5 (Vorschläge, Ablegen) hängen alle am ausgewählten Scan.
+- **Auswahl-Regeln als reine, separat getestete Logik:** die Regeln (nächster/vorheriger/bleibt) sind fehleranfällig und sollen ohne Browser testbar sein.
+- **Dateien parallel, aber begrenzt abfragen:** Grösse/Datum jeder Datei werden mit begrenzter Parallelität gelesen – schnell bei vielen Scans, ohne das NAS zu überlasten. Gesamte Abfrage nutzt die 10-s-Obergrenze aus PROJ-1.
+- **Datum/Zeit im Schweizer Format** (`21.11.2026, 09:35`), Grösse in KB/MB.
+
+### F) Abhängigkeiten (zu installieren)
+Keine. Alles mit vorhandenen Paketen (Next.js, shadcn/ui, lucide-react, Zod) umsetzbar.
 
 ## QA Test Results
 _To be added by /qa_
