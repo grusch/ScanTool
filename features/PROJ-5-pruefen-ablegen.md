@@ -1,6 +1,6 @@
 # PROJ-5: Prüfen & Ablegen
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-11-21
 **Last Updated:** 2026-11-21
 
@@ -315,6 +315,14 @@ Keine. Node-Bordmittel für Dateien und Prüfsummen genügen, dazu die vorhanden
 **Abweichungen / Hinweise:**
 - Tastenkürzel hängen am Ablage-Bereich (immer genau einer sichtbar, solange ein Scan ausgewählt ist) statt an der Arbeitsfläche – gleiche Wirkung, einfacher.
 - Geprüft im Dev-Server mit simulierter Schnittstelle (nichts verschoben): Darstellung, Tooltip, Toast mit „Rückgängig", 375 px ohne seitliches Scrollen.
+
+### Erweiterung „Löschen“ (Frontend, 2026-11-21)
+- `src/lib/filing-types.ts`: neues Ziel `"papierkorb"` in `FilingTarget`; `fileName` ist dafür immer `null`.
+- `src/components/suggestions/filing-section.tsx`: dritter Knopf „Löschen“ (shadcn `Button` variant `destructive`, Icon `Trash2`), rechts abgesetzt (`ml-auto`, linke Trennlinie), immer aktiv ausser während des Ablegens bzw. der kurzen Sperre danach. Tooltip „In Scanner\Papierkorb\ verschieben, Originalname (Strg + Entf)“. Die Zielzeile nennt zusätzlich „Löschen → Scanner\Papierkorb\“. Bei schmalem Fenster bricht der Knopf in eine eigene Zeile um.
+- Tastenkürzel Strg + Entf (auch aus Eingabefeldern; Standardaktion „Wort löschen“ wird unterdrückt). Entf allein und Strg + Umschalt + Entf tun nichts.
+- `src/hooks/use-filing.ts`: Meldungstexte für den Papierkorb („In den Papierkorb verschoben: …“, „War bereits im Papierkorb – Eingang bereinigt“). Sperre, nächster Scan und „Rückgängig“ laufen über denselben Ablauf wie beim Ablegen.
+- **Tests:** 7 neue Komponententests (immer aktiv + nur Originalname, Strg + Entf aus Eingabefeld, Entf allein/mit Umschalt ignoriert, Sperre gegen Doppelauslösung, identische Datei/Namenskonflikt, Rückgängig, Fehler). Vitest gesamt 302/302, `tsc` ohne Fehler.
+- **Offen für `/backend`:** Der Server kennt `"papierkorb"` noch nicht und antwortet mit `invalid_request` („Ungültiger Dateiname oder Zielordner“). Dabei wird nichts verschoben.
 
 ## Implementation Notes (Backend)
 **Gebaut (2026-11-21):**

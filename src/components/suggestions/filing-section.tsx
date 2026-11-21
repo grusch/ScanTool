@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { toast } from "sonner"
-import { Archive, FileText, Loader2, Receipt, RotateCcw } from "lucide-react"
+import { Archive, FileText, Loader2, Receipt, RotateCcw, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,8 +33,9 @@ interface FilingSectionProps {
 
 const SHORTCUT_INVOICE = "Strg + Enter"
 const SHORTCUT_SCAN = "Strg + Umschalt + Enter"
+const SHORTCUT_TRASH = "Strg + Entf"
 
-/** File name field + "Rechnung" / "Scan" (PROJ-5) */
+/** File name field + "Rechnung" / "Scan" / "Löschen" (PROJ-5) */
 export function FilingSection(props: FilingSectionProps) {
   const { scan, autoName, customName, date, busy, alreadyCopied } = props
   const custom = customName !== undefined
@@ -65,13 +66,22 @@ export function FilingSection(props: FilingSectionProps) {
   }
   // "Scan" is always possible – without a valid name the original name stays
   const fileAsScan = () => props.onFile({ scan, target: "scan", fileName: check.ok ? check.name : null })
+  // "Löschen" is always possible – moves the scan with its original name to Scanner\Papierkorb\
+  const moveToTrash = () => props.onFile({ scan, target: "papierkorb", fileName: null })
 
   // Keyboard shortcuts for the whole main view, also from input fields
-  const actions = useRef({ fileInvoice, fileAsScan, invoiceBlocker, busy })
-  actions.current = { fileInvoice, fileAsScan, invoiceBlocker, busy }
+  const actions = useRef({ fileInvoice, fileAsScan, moveToTrash, invoiceBlocker, busy })
+  actions.current = { fileInvoice, fileAsScan, moveToTrash, invoiceBlocker, busy }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey) || e.altKey) return
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return
+      // Strg + Entf: also from input fields – deletes the scan, not the word in the field
+      if (e.key === "Delete" && !e.shiftKey) {
+        e.preventDefault()
+        if (!actions.current.busy) actions.current.moveToTrash()
+        return
+      }
+      if (e.key !== "Enter") return
       e.preventDefault()
       const a = actions.current
       if (a.busy) return
@@ -159,9 +169,29 @@ export function FilingSection(props: FilingSectionProps) {
             Nach Scanner\Abgelegt\ ablegen{check.ok ? "" : " (Originalname)"} ({SHORTCUT_SCAN})
           </TooltipContent>
         </Tooltip>
+        {/* Set apart (gap + left border) so it is not hit by mistake */}
+        <div className="ml-auto flex border-l pl-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={moveToTrash}
+                  disabled={busy !== null}
+                  aria-keyshortcuts="Control+Delete"
+                >
+                  {busy === "papierkorb" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="mr-2 h-4 w-4" aria-hidden />}
+                  Löschen
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>In Scanner\Papierkorb\ verschieben, Originalname ({SHORTCUT_TRASH})</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
       <p className="text-xs text-muted-foreground" data-testid="filing-target">
-        Rechnung → {target} · Scan → Scanner\Abgelegt\
+        Rechnung → {target} · Scan → Scanner\Abgelegt\ · Löschen → Scanner\Papierkorb\
       </p>
     </div>
   )

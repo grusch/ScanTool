@@ -273,3 +273,83 @@ describe("Ablegen (PROJ-5)", () => {
     expect(await screen.findByText(/Datei nicht mehr am Ablageort/)).toBeInTheDocument()
   })
 })
+
+describe("Löschen → Papierkorb (PROJ-5)", () => {
+  const trashButton = () => screen.getByRole("button", { name: /^Löschen$/ })
+  const trashed = (req: FilingRequest) => filed(`Scanner\\Papierkorb\\${req.scan}`)
+
+  it("is always possible and sends the original name only (field ignored), then the next scan is selected", async () => {
+    filingAnswer = trashed
+    renderWorkspace()
+    // no date, invalid name: „Rechnung“ blocked, „Löschen“ still possible
+    fireEvent.change(nameField(), { target: { value: "a/b" } })
+    expect(invoiceButton()).toBeDisabled()
+    expect(trashButton()).toBeEnabled()
+    fireEvent.click(trashButton())
+    await waitFor(() => expect(filingCalls).toHaveLength(1))
+    expect(filingCalls[0]).toEqual({ scan: "a.pdf", target: "papierkorb", fileName: null })
+    expect(await screen.findByText(/In den Papierkorb verschoben: Scanner\\Papierkorb\\a\.pdf/)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole("option", { name: /b\.pdf/ })).toHaveAttribute("aria-selected", "true"))
+    expect(screen.queryByRole("option", { name: /a\.pdf/ })).not.toBeInTheDocument()
+  })
+
+  it("Strg + Entf moves to the trash – also from an input field, without touching the field", async () => {
+    filingAnswer = trashed
+    renderWorkspace()
+    fireEvent.change(input("Lieferant"), { target: { value: "Digitec" } })
+    const ev = fireEvent.keyDown(input("Lieferant"), { key: "Delete", ctrlKey: true })
+    expect(ev).toBe(false) // default (delete word) prevented
+    await waitFor(() => expect(filingCalls[0]).toEqual({ scan: "a.pdf", target: "papierkorb", fileName: null }))
+  })
+
+  it("plain Entf and Strg + Umschalt + Entf do nothing", () => {
+    renderWorkspace()
+    fireEvent.keyDown(document.body, { key: "Delete" })
+    fireEvent.keyDown(document.body, { key: "Delete", ctrlKey: true, shiftKey: true })
+    expect(filingCalls).toHaveLength(0)
+  })
+
+  it("is locked while filing runs and right after (no double delete)", async () => {
+    let release!: () => void
+    filingAnswer = (req) => new Promise((r) => (release = () => r(trashed(req))))
+    renderWorkspace()
+    fireEvent.click(trashButton())
+    fireEvent.click(trashButton())
+    fireEvent.keyDown(document.body, { key: "Delete", ctrlKey: true })
+    await waitFor(() => expect(filingCalls).toHaveLength(1))
+    expect(trashButton()).toBeDisabled()
+    expect(invoiceButton()).toBeDisabled()
+    await act(async () => release())
+    fireEvent.keyDown(document.body, { key: "Delete", ctrlKey: true })
+    expect(filingCalls).toHaveLength(1)
+    await waitFor(() => expect(trashButton()).toBeEnabled(), { timeout: 3000 })
+  })
+
+  it("names an already trashed duplicate and a taken name", async () => {
+    filingAnswer = (req) => filed(`Scanner\\Papierkorb\\${req.scan}`, { status: "already_filed", undoToken: undefined })
+    renderWorkspace()
+    fireEvent.click(trashButton())
+    expect(await screen.findByText(/War bereits im Papierkorb – Eingang bereinigt/)).toBeInTheDocument()
+    await waitFor(() => expect(trashButton()).toBeEnabled(), { timeout: 3000 })
+    filingAnswer = () => filed("Scanner\\Papierkorb\\b_2.pdf", { renamed: true })
+    fireEvent.click(trashButton())
+    expect(await screen.findByText(/In den Papierkorb verschoben: Scanner\\Papierkorb\\b_2\.pdf \(Name war schon vergeben\)/)).toBeInTheDocument()
+  })
+
+  it("„Rückgängig“ brings a trashed scan back", async () => {
+    filingAnswer = trashed
+    renderWorkspace()
+    fireEvent.click(trashButton())
+    fireEvent.click(await screen.findByRole("button", { name: "Rückgängig" }))
+    expect(await screen.findByText("Zurück im Eingang: a.pdf")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole("option", { name: /a\.pdf/ })).toHaveAttribute("aria-selected", "true"))
+  })
+
+  it("shows errors and leaves the scan in the inbox", async () => {
+    filingAnswer = () => ({ ok: false, code: "inbox_unreachable" })
+    renderWorkspace()
+    fireEvent.click(trashButton())
+    expect(await screen.findByText(/Eingangsordner nicht erreichbar/)).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: /a\.pdf/ })).toBeInTheDocument()
+  })
+})

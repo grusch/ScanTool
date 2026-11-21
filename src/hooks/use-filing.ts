@@ -78,10 +78,11 @@ export function useFiling({ refresh, onRestored }: UseFilingOptions) {
           return next
         })
         await refresh()
+        const trash = request.target === "papierkorb"
         const text =
           res.status === "already_filed"
-            ? `War bereits abgelegt – Eingang bereinigt (${res.location})`
-            : `Abgelegt: ${res.location}${res.renamed ? " (Name war schon vergeben)" : ""}`
+            ? `${trash ? "War bereits im Papierkorb" : "War bereits abgelegt"} – Eingang bereinigt (${res.location})`
+            : `${trash ? "In den Papierkorb verschoben" : "Abgelegt"}: ${res.location}${res.renamed ? " (Name war schon vergeben)" : ""}`
         const token = res.undoToken
         toast.success(text, {
           duration: UNDO_TOAST_MS,

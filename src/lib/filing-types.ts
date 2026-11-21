@@ -1,13 +1,16 @@
 // Shared contract between the filing UI and POST /api/filing (+ /api/filing/undo) – PROJ-5.
 
-/** "rechnung" → <Ablage>\Rechnungen\<Jahr>\ · "scan" → <Eingang>\Abgelegt\ */
-export type FilingTarget = "rechnung" | "scan"
+/**
+ * "rechnung" → <Ablage>\Rechnungen\<Jahr>\ · "scan" → <Eingang>\Abgelegt\ ·
+ * "papierkorb" → <Eingang>\Papierkorb\ (button „Löschen“, always the original name, never deleted for good)
+ */
+export type FilingTarget = "rechnung" | "scan" | "papierkorb"
 
 export interface FilingRequest {
   /** File name of the scan in the inbox (no path) */
   scan: string
   target: FilingTarget
-  /** New file name (no path); for "scan" null = keep the original name */
+  /** New file name (no path); for "scan" null = keep the original name; always null for "papierkorb" */
   fileName: string | null
   /** Year folder for "rechnung" (from the date field) */
   year?: number
